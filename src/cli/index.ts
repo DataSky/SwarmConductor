@@ -5,20 +5,16 @@ import { defaultConfig } from "../dag/types"
 import type { ConductorConfig, ConductorEvent } from "../dag/types"
 import { writeFileSync } from "fs"
 import { join } from "path"
+import { loadTaskFile } from "./task-file"
+import { goalToTaskGraph } from "./goal-planner"
+import { InteractiveRunner } from "./interactive"
 
 // ─── ANSI helpers ─────────────────────────────────────────────────────────────
 
 const C = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  red: "\x1b[31m",
-  cyan: "\x1b[36m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  gray: "\x1b[90m",
+  reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m",
+  green: "\x1b[32m", yellow: "\x1b[33m", red: "\x1b[31m",
+  cyan: "\x1b[36m", blue: "\x1b[34m", magenta: "\x1b[35m", gray: "\x1b[90m",
 }
 
 function statusColor(s: string): string {
@@ -45,9 +41,8 @@ function renderDashboard(conductor: Conductor, eventLog: string[]): void {
   const now = new Date().toISOString().slice(11, 19)
 
   process.stdout.write("\x1b[2J\x1b[H")
-
   console.log(`${C.bold}╔══════════════════════════════════════════════════╗${C.reset}`)
-  console.log(`${C.bold}║         SWARM CONDUCTOR  v0.1.0    ${C.gray}${now}${C.reset}${C.bold}  ║${C.reset}`)
+  console.log(`${C.bold}║         SWARM CONDUCTOR  v0.1.1    ${C.gray}${now}${C.reset}${C.bold}  ║${C.reset}`)
   console.log(`${C.bold}╚══════════════════════════════════════════════════╝${C.reset}`)
   console.log()
 
@@ -57,10 +52,9 @@ function renderDashboard(conductor: Conductor, eventLog: string[]): void {
   console.log(`  Phase ${C.bold}${s.phase}${C.reset}  ${bar(done, total)}  ${done}/${total} (${pct}%)`)
   console.log(`  ${C.cyan}running:${s.tasks.running}${C.reset}  ${C.blue}ready:${s.tasks.ready}${C.reset}  ${C.dim}blocked:${s.tasks.blocked}${C.reset}  ${C.red}failed:${s.tasks.failed}${C.reset}`)
   console.log()
-
   console.log(`  ${C.bold}Agents${C.reset}  idle:${C.green}${s.agents.idle}${C.reset}  busy:${C.cyan}${s.agents.busy}${C.reset}  crashed:${C.red}${s.agents.crashed}${C.reset}  locks:${s.locks}`)
   if (s.pendingApprovals > 0) {
-    console.log(`  ${C.yellow}${C.bold}⏸  ${s.pendingApprovals} approval(s) pending — scheduler paused${C.reset}`)
+    console.log(`  ${C.yellow}${C.bold}⏸  ${s.pendingApprovals} approval(s) pending${C.reset}`)
   }
   console.log()
 
@@ -69,32 +63,30 @@ function renderDashboard(conductor: Conductor, eventLog: string[]): void {
   console.log(`  ${"─".repeat(60)}`)
   for (const t of shown) {
     const sc = statusColor(t.status)
-    const dyn = t.dependsOn.length > 0 && t.retryCount === 0 && t.status === "ready" ? `${C.magenta}↑${C.reset}` : " "
+    const dyn = t.dependsOn.length > 0 && t.retryCount === 0 && t.status === "ready"
+      ? `${C.magenta}↑${C.reset}` : " "
     console.log(`  ${sc}${t.status.padEnd(11)}${C.reset} ${C.dim}${t.type.padEnd(11)}${C.reset} ${dyn}${t.title.slice(0, 36)}`)
   }
-  if (tasks.length > 15) {
-    console.log(`  ${C.dim}... and ${tasks.length - 15} more tasks${C.reset}`)
-  }
+  if (tasks.length > 15) console.log(`  ${C.dim}... and ${tasks.length - 15} more${C.reset}`)
   console.log()
 
   console.log(`  ${C.bold}Recent events${C.reset}`)
   console.log(`  ${"─".repeat(60)}`)
-  for (const line of eventLog.slice(-6)) {
+  for (const line of eventLog.slice(-5)) {
     console.log(`  ${C.gray}${line}${C.reset}`)
   }
 }
 
-// ─── Final report printed to terminal after run ───────────────────────────────
+// ─── Final report ─────────────────────────────────────────────────────────────
 
 function printFinalReport(conductor: Conductor, wallMs: number, outputPath: string | null): void {
-  const tasks = conductor.taskDag.allTasks()
-  const done  = tasks.filter(t => t.status === "done")
+  const tasks  = conductor.taskDag.allTasks()
+  const done   = tasks.filter(t => t.status === "done")
   const failed = tasks.filter(t => t.status === "failed")
   const timings = done
     .filter(t => t.startedAt && t.completedAt)
     .map(t => t.completedAt! - t.startedAt!)
 
-  // ── Terminal output ────────────────────────────────────────────────────────
   console.log()
   console.log(`${C.bold}╔══════════════════════════════════════════════════╗${C.reset}`)
   console.log(`${C.bold}║  RUN SUMMARY                                     ║${C.reset}`)
@@ -103,14 +95,11 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
   console.log(`  Tasks   ${C.green}${done.length} done${C.reset}  ${failed.length > 0 ? `${C.red}${failed.length} failed${C.reset}` : `${C.dim}0 failed${C.reset}`}  / ${tasks.length} total`)
   if (timings.length > 0) {
     const avg = Math.round(timings.reduce((a, b) => a + b, 0) / timings.length / 1000)
-    const min = Math.round(Math.min(...timings) / 1000)
-    const max = Math.round(Math.max(...timings) / 1000)
-    console.log(`  Timing  avg ${avg}s  min ${min}s  max ${max}s  wall ${Math.round(wallMs / 1000)}s`)
+    console.log(`  Timing  avg ${avg}s  wall ${Math.round(wallMs / 1000)}s`)
   }
   console.log(`  Run ID  ${C.dim}${conductor.runId}${C.reset}`)
   console.log()
 
-  // Per-task summaries
   if (done.length > 0) {
     console.log(`${C.bold}  Task Summaries${C.reset}`)
     console.log(`  ${"─".repeat(60)}`)
@@ -122,15 +111,11 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
           if (line.trim()) console.log(`    ${line.trim()}`)
         }
       }
-      if (t.output?.risks.length) {
-        for (const r of t.output.risks.slice(0, 2)) {
-          console.log(`    ${C.yellow}⚠${C.reset} ${r.trim()}`)
-        }
+      for (const r of (t.output?.risks ?? []).slice(0, 2)) {
+        console.log(`    ${C.yellow}⚠${C.reset} ${r.trim()}`)
       }
-      if (t.output?.blockers.length) {
-        for (const b of t.output.blockers.slice(0, 2)) {
-          console.log(`    ${C.red}✗${C.reset} ${b.trim()}`)
-        }
+      for (const b of (t.output?.blockers ?? []).slice(0, 2)) {
+        console.log(`    ${C.red}✗${C.reset} ${b.trim()}`)
       }
     }
     console.log()
@@ -145,29 +130,15 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
     console.log()
   }
 
-  // DB hint
-  console.log(`  ${C.dim}Full output → .conductor/conductor.db (run: ${conductor.runId})${C.reset}`)
-
-  // ── JSON output ────────────────────────────────────────────────────────────
+  const dest = outputPath ?? join(process.cwd(), ".conductor", `report-${conductor.runId}.json`)
   const report = {
     runId: conductor.runId,
     timestamp: new Date().toISOString(),
     result: failed.length === 0 ? "completed" : "partial",
     wallMs,
-    tasks: {
-      total: tasks.length,
-      done: done.length,
-      failed: failed.length,
-    },
-    timings: timings.length > 0 ? {
-      avgMs: Math.round(timings.reduce((a, b) => a + b, 0) / timings.length),
-      minMs: Math.min(...timings),
-      maxMs: Math.max(...timings),
-    } : null,
+    tasks: { total: tasks.length, done: done.length, failed: failed.length },
     summaries: done.map(t => ({
-      id: t.id,
-      title: t.title,
-      type: t.type,
+      id: t.id, title: t.title, type: t.type,
       summary: t.output?.summary ?? "",
       risks: t.output?.risks ?? [],
       blockers: t.output?.blockers ?? [],
@@ -176,9 +147,8 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
     })),
     errors: failed.map(t => ({ id: t.id, title: t.title, error: t.error })),
   }
-
-  const dest = outputPath ?? join(process.cwd(), ".conductor", `report-${conductor.runId}.json`)
   writeFileSync(dest, JSON.stringify(report, null, 2))
+  console.log(`  ${C.dim}Full output  → .conductor/conductor.db${C.reset}`)
   console.log(`  ${C.dim}JSON report  → ${dest}${C.reset}`)
   console.log()
 }
@@ -186,7 +156,7 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
 // ─── CLI argument parsing ─────────────────────────────────────────────────────
 
 function parseArgs(argv: string[]): { command: string; flags: Record<string, string> } {
-  const [, , command = "status", ...rest] = argv
+  const [, , command = "help", ...rest] = argv
   const flags: Record<string, string> = {}
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i]
@@ -197,10 +167,10 @@ function parseArgs(argv: string[]): { command: string; flags: Record<string, str
       else flags[key] = "true"
     }
   }
-  return { command: command ?? "status", flags }
+  return { command: command ?? "help", flags }
 }
 
-// ─── Demo run ─────────────────────────────────────────────────────────────────
+// ─── Demo mode ────────────────────────────────────────────────────────────────
 
 async function runDemo(config: ConductorConfig): Promise<void> {
   console.log("Swarm Conductor — architecture demo")
@@ -210,12 +180,12 @@ async function runDemo(config: ConductorConfig): Promise<void> {
   const conductor = new Conductor(config)
   await conductor.initialize()
 
-  const exploreFiles = createTaskNode({ type: "explore", title: "Scan file structure",        prompt: "p", scope: [config.projectPath], priority: 100 })
-  const exploreTests = createTaskNode({ type: "explore", title: "Analyze test coverage",      prompt: "p", scope: [config.projectPath], priority: 90 })
-  const exploreAPIs  = createTaskNode({ type: "explore", title: "Map API boundaries",          prompt: "p", scope: [config.projectPath], priority: 90 })
-  const planTask     = createTaskNode({ type: "plan",    title: "Generate implementation plan", prompt: "p", scope: [], priority: 80, dependsOn: [exploreFiles.id, exploreTests.id, exploreAPIs.id] })
+  const e1 = createTaskNode({ type: "explore", title: "Scan file structure",         prompt: "p", scope: [config.projectPath], priority: 100 })
+  const e2 = createTaskNode({ type: "explore", title: "Analyze test coverage",       prompt: "p", scope: [config.projectPath], priority: 90 })
+  const e3 = createTaskNode({ type: "explore", title: "Map API boundaries",           prompt: "p", scope: [config.projectPath], priority: 90 })
+  const p1 = createTaskNode({ type: "plan",    title: "Generate implementation plan", prompt: "p", scope: [], priority: 80, dependsOn: [e1.id, e2.id, e3.id] })
 
-  conductor.taskDag.addTasks([exploreFiles, exploreTests, exploreAPIs, planTask])
+  conductor.taskDag.addTasks([e1, e2, e3, p1])
 
   const s = conductor.status()
   console.log(`Task DAG: ${s.tasks.total} tasks  |  ${s.tasks.ready} ready (parallel)  |  ${s.tasks.blocked} blocked`)
@@ -230,23 +200,72 @@ async function runDemo(config: ConductorConfig): Promise<void> {
   console.log()
   console.log(`Deadlock check: ${conductor.taskDag.detectDeadlock().length === 0 ? `${C.green}clean${C.reset}` : `${C.red}cycle detected!${C.reset}`}`)
   console.log()
-  console.log("Features:")
-  console.log(`  ${C.green}✓${C.reset} Dynamic task insertion (BLOCKERS → new implement tasks)`)
-  console.log(`  ${C.green}✓${C.reset} Approval gate (phase boundary / high-risk)`)
-  console.log(`  ${C.green}✓${C.reset} Crash recovery (heartbeat + auto-restart)`)
-  console.log(`  ${C.green}✓${C.reset} Real-time dashboard + final summary report`)
-  console.log(`  ${C.green}✓${C.reset} JSON report saved after every run`)
-  console.log()
-  console.log(`To run with live agents:`)
-  console.log(`  swarm run --project /path/to/repo --agents 5 --auto-approve`)
+  console.log("How to run:")
+  console.log(`  ${C.cyan}swarm run --goal "描述你的目标"${C.reset}`)
+  console.log(`  ${C.cyan}swarm run --tasks tasks.yaml${C.reset}`)
+  console.log(`  ${C.cyan}swarm run --goal "..." --no-interact${C.reset}  ${C.dim}(全自动，不打断)${C.reset}`)
 }
 
-// ─── Live run ─────────────────────────────────────────────────────────────────
+// ─── Core run logic ───────────────────────────────────────────────────────────
 
-async function runLive(config: ConductorConfig, outputPath: string | null): Promise<void> {
+async function runLive(config: ConductorConfig, flags: Record<string, string>): Promise<void> {
+  const tasksFile  = flags["tasks"]  ?? null
+  const goal       = flags["goal"]   ?? null
+  const outputPath = flags["output"] ?? null
+  const noInteract = flags["no-interact"] === "true" || flags["auto-approve"] === "true"
+
+  if (!tasksFile && !goal) {
+    console.error(`${C.red}Error:${C.reset} Provide --goal "..." or --tasks <file>`)
+    console.error(`  swarm run --goal "重构 src/auth 模块"`)
+    console.error(`  swarm run --tasks tasks.yaml`)
+    process.exit(1)
+  }
+
   const conductor = new Conductor(config)
   await conductor.initialize()
 
+  // ── Load tasks ─────────────────────────────────────────────────────────────
+  let taskNodes = []
+  let preamble = ""
+
+  if (tasksFile) {
+    const result = loadTaskFile(tasksFile)
+    taskNodes = result.nodes
+    preamble = result.goal ? `Goal: ${result.goal}\n` : ""
+    if (result.agents && !flags["agents"]) config.maxConcurrentAgents = result.agents
+    if (result.autoApprove !== null && !flags["auto-approve"]) config.autoApprove = result.autoApprove
+  } else {
+    const result = goalToTaskGraph(goal!, config.projectPath)
+    taskNodes = result.nodes
+    preamble = `Goal: ${goal}\n\n${result.description}`
+  }
+
+  if (preamble) {
+    console.log(preamble)
+    console.log()
+  }
+
+  console.log(`Tasks: ${taskNodes.length}`)
+  for (const t of taskNodes) {
+    const dep = t.dependsOn.length > 0 ? ` ${C.dim}(after ${t.dependsOn.length} task(s))${C.reset}` : ""
+    console.log(`  ${C.dim}[${t.type.padEnd(10)}]${C.reset} ${t.title}${dep}`)
+  }
+  console.log()
+
+  conductor.taskDag.addTasks(taskNodes)
+
+  // ── Spawn agents ───────────────────────────────────────────────────────────
+  const agentCount = Math.min(config.maxConcurrentAgents, taskNodes.length)
+  const roles = Array(agentCount).fill("general") as "general"[]
+  console.log(`Spawning ${agentCount} agents...`)
+  await conductor.spawnAgents(roles)
+  console.log(`✓ Ready\n`)
+
+  // ── Attach interactive runner ──────────────────────────────────────────────
+  const interactive = new InteractiveRunner(conductor, noInteract)
+  interactive.attach()
+
+  // ── Dashboard render loop ──────────────────────────────────────────────────
   const eventLog: string[] = []
   conductor.onEvent((e: ConductorEvent) => {
     const ts = new Date(e.timestamp).toISOString().slice(11, 19)
@@ -254,44 +273,69 @@ async function runLive(config: ConductorConfig, outputPath: string | null): Prom
     eventLog.push(`[${ts}] ${e.kind}${detail}`)
   })
 
-  const exploreTask = createTaskNode({
-    type: "explore",
-    title: "Explore project",
-    prompt: [
-      "Explore the current directory and provide a summary.",
-      "",
-      "## SUMMARY",
-      "[your summary here]",
-      "## CHANGES",
-      "## EVIDENCE",
-      "## RISKS",
-      "## BLOCKERS",
-    ].join("\n"),
-    scope: [config.projectPath],
-    priority: 100,
-  })
-
-  conductor.taskDag.addTask(exploreTask)
-  await conductor.spawnAgents(["general"])
-
-  const renderInterval = setInterval(() => renderDashboard(conductor, eventLog), 500)
+  // Only render dashboard if no-interact (interactive mode prints its own output)
+  const renderInterval = noInteract
+    ? setInterval(() => renderDashboard(conductor, eventLog), 500)
+    : null
 
   const startMs = Date.now()
   conductor.startScheduler()
-  const result = await conductor.waitForCompletion(600_000)
+  const result = await conductor.waitForCompletion(3_600_000)
   const wallMs = Date.now() - startMs
 
-  clearInterval(renderInterval)
+  if (renderInterval) clearInterval(renderInterval)
 
-  // Clear dashboard, print persistent final report
   process.stdout.write("\x1b[2J\x1b[H")
   console.log(result === "completed"
     ? `${C.green}${C.bold}✓ Run completed${C.reset}`
     : `${C.red}${C.bold}✗ Run finished with status: ${result}${C.reset}`)
 
   printFinalReport(conductor, wallMs, outputPath)
-
   await conductor.shutdown()
+}
+
+// ─── Help ─────────────────────────────────────────────────────────────────────
+
+function printHelp(): void {
+  console.log(`${C.bold}Swarm Conductor v0.1.1${C.reset}`)
+  console.log()
+  console.log(`${C.bold}Usage${C.reset}`)
+  console.log(`  swarm demo                          验证架构（无需 CodeWhale）`)
+  console.log(`  swarm run --goal "..."              用自然语言描述目标`)
+  console.log(`  swarm run --tasks <file>            从 YAML 任务文件运行`)
+  console.log()
+  console.log(`${C.bold}Options${C.reset}`)
+  console.log(`  --goal <text>          自然语言描述任务目标`)
+  console.log(`  --tasks <path>         YAML 任务文件路径`)
+  console.log(`  --project <path>       目标项目目录 ${C.dim}(默认: cwd)${C.reset}`)
+  console.log(`  --agents <n>           最大并发 agent 数 ${C.dim}(默认: 5)${C.reset}`)
+  console.log(`  --auto-approve         自动批准所有 tool call`)
+  console.log(`  --no-interact          全自动模式，不在任务间暂停`)
+  console.log(`  --output <path>        JSON 报告保存路径`)
+  console.log(`  --dynamic-tasks false  关闭动态任务生成`)
+  console.log(`  --bin <path>           CodeWhale 二进制路径`)
+  console.log()
+  console.log(`${C.bold}Examples${C.reset}`)
+  console.log(`  swarm run --goal "重构 src/auth 模块，把 JWT 换成 session"`)
+  console.log(`  swarm run --tasks tasks.yaml --agents 8`)
+  console.log(`  swarm run --goal "找出所有性能问题" --no-interact --output report.json`)
+  console.log()
+  console.log(`${C.bold}Task file format${C.reset}  ${C.dim}(tasks.yaml)${C.reset}`)
+  console.log(`  goal: "整体目标描述"`)
+  console.log(`  agents: 5`)
+  console.log(`  phases:`)
+  console.log(`    - name: explore`)
+  console.log(`      tasks:`)
+  console.log(`        - title: "分析 auth 模块"`)
+  console.log(`          type: explore`)
+  console.log(`          scope: ["src/auth"]`)
+  console.log(`    - name: implement`)
+  console.log(`      tasks:`)
+  console.log(`        - title: "替换 JWT"`)
+  console.log(`          type: implement`)
+  console.log(`          depends_on_phase: explore`)
+  console.log()
+  console.log(`  ${C.dim}Docs: https://github.com/DataSky/SwarmConductor/tree/main/docs${C.reset}`)
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -301,36 +345,22 @@ async function main(): Promise<void> {
 
   const config = defaultConfig({
     projectPath: flags["project"] ?? process.cwd(),
-    maxConcurrentAgents: flags["agents"] ? parseInt(flags["agents"]) : 10,
+    maxConcurrentAgents: flags["agents"] ? parseInt(flags["agents"]) : 5,
     autoApprove: flags["auto-approve"] === "true",
     codewhalebin: flags["bin"] ?? "codewhale",
     dynamicTasks: flags["dynamic-tasks"] !== "false",
   })
-
-  const outputPath = flags["output"] ?? null
 
   switch (command) {
     case "demo":
       await runDemo(config)
       break
     case "run":
-      await runLive(config, outputPath)
+      await runLive(config, flags)
       break
     default:
-      console.log(`${C.bold}Swarm Conductor v0.1.0${C.reset}`)
-      console.log()
-      console.log("Commands:")
-      console.log("  demo    Verify architecture (no live agents)")
-      console.log("  run     Live run with dashboard + final summary report")
-      console.log()
-      console.log("Options:")
-      console.log("  --project <path>       Target project (default: cwd)")
-      console.log("  --agents <n>           Max concurrent agents (default: 10)")
-      console.log("  --auto-approve         Auto-approve all tool calls")
-      console.log("  --dynamic-tasks false  Disable dynamic task insertion")
-      console.log("  --output <path>        Save JSON report to this path")
-      console.log("  --bin <path>           Path to codewhale binary")
+      printHelp()
   }
 }
 
-main().catch(err => { console.error("Fatal:", err); process.exit(1) })
+main().catch(err => { console.error(`${C.red}Fatal:${C.reset}`, err.message ?? err); process.exit(1) })

@@ -1,0 +1,25 @@
+goal: "重构 auth 模块，把 JWT 换成 session"
+agents: 3
+
+phases:
+  - name: explore
+    tasks:
+      - title: "分析 auth 模块现状"
+        type: explore
+        scope: ["src/conductor"]
+        prompt: "分析这个模块的结构，找出主要接口和依赖"
+
+      - title: "分析测试覆盖情况"
+        type: explore
+        scope: ["tests"]
+
+  - name: implement
+    tasks:
+      - title: "制定重构计划"
+        type: plan
+        depends_on_phase: explore
+
+      - title: "执行重构"
+        type: implement
+        scope: ["src/conductor"]
+        depends_on: ["制定重构计划"]

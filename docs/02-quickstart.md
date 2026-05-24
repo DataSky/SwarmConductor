@@ -25,37 +25,71 @@ M3 features available:
 
 ## 2. 对真实项目运行
 
+### 方式一：自然语言描述目标（最简单）
+
 ```bash
-swarm run --project /path/to/your/project --agents 5 --auto-approve
+swarm run --goal "重构 src/auth 模块，把 JWT 换成 session" --project /your/repo
 ```
 
-Dashboard 示意：
+Swarm 自动生成 explore → plan → implement → review → verify 五阶段任务图。
+
+每个任务完成后会暂停，打印摘要，允许你追加新任务：
+
 ```
-╔══════════════════════════════════════════════════╗
-║       SWARM CONDUCTOR  v0.1.0    08:32:14        ║
-╚══════════════════════════════════════════════════╝
+✓ Explore: understand codebase  [explore]
+─────────────────────────────────────────────
+  发现 JWT 过期处理有 bug，session 表缺少索引
+  ⚠ HIGH: refresh token 无失效机制
 
-Phase 0  [████████████████░░░░░░░░░░░░]  4/5 (80%)
-  running:1  ready:0  blocked:3  failed:0
+追加任务？(回车跳过，输入描述直接加入队列)
+> 顺便检查一下 refresh token 的失效逻辑
+→ 已插入: "顺便检查一下 refresh token 的失效逻辑"
+```
 
-Agents  idle:4  busy:1  crashed:0  locks:2
+全自动不打断：
 
-  STATUS      TYPE        TITLE
-  ──────────────────────────────────────────────────────────
-  done        explore     Explore: DAG engine & types
-  done        explore     Explore: Runtime client
-  done        explore     Explore: Conductor scheduler
-  done        explore     Explore: SQLite store
-  running     explore     Explore: Workspace isolation
-  blocked     review      Review: Crash recovery
-  blocked     review      Review: Test gaps
-  blocked     review      Review: Performance
+```bash
+swarm run --goal "..." --no-interact --project /your/repo
+```
 
-Recent events
-  ──────────────────────────────────────────────────────────
-  [08:30:11] task.status_changed task:a1b2c3d4
-  [08:31:44] lock.acquired
-  [08:32:01] task.status_changed task:e5f6g7h8
+### 方式二：YAML 任务文件（精确控制）
+
+```bash
+swarm run --tasks tasks.yaml
+```
+
+`tasks.yaml` 示例：
+
+```yaml
+goal: "重构 auth 模块，把 JWT 换成 session"
+agents: 5
+
+phases:
+  - name: explore
+    tasks:
+      - title: "分析 auth 模块现状"
+        type: explore
+        scope: ["src/auth"]
+
+      - title: "分析测试覆盖情况"
+        type: explore
+        scope: ["tests/auth"]
+
+  - name: implement
+    tasks:
+      - title: "制定重构计划"
+        type: plan
+        depends_on_phase: explore    # 等 explore phase 全部完成
+
+      - title: "替换 JWT 为 session"
+        type: implement
+        scope: ["src/auth/jwt.ts", "src/auth/session.ts"]
+        depends_on: ["制定重构计划"] # 等特定任务完成
+
+      - title: "补全单元测试"
+        type: implement
+        scope: ["tests/auth"]
+        depends_on: ["替换 JWT 为 session"]
 ```
 
 ---
