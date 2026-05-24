@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     name: Build binaries
-    runs-on: macos-14           # Apple Silicon runner
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -20,13 +20,14 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
 
       - name: Run tests
         run: bun test tests/dag.test.ts tests/m3-unit.test.ts tests/store.test.ts tests/git-workspace.test.ts
 
       - name: Build arm64
         run: |
+          mkdir -p dist
           bun build --compile --target=bun-darwin-arm64 --minify \
             src/cli/index.ts \
             --outfile dist/swarm-conductor-darwin-arm64
@@ -43,13 +44,18 @@ jobs:
           mkdir -p dist/release
 
           for ARCH in darwin-arm64 darwin-x64; do
+            # 先把二进制复制到临时目录，再和 README 一起打包
+            STAGING=$(mktemp -d)
+            cp "dist/swarm-conductor-${ARCH}" "$STAGING/swarm-conductor"
+            cp README.md "$STAGING/"
             tar -czf "dist/release/swarm-conductor-${VERSION}-${ARCH}.tar.gz" \
-              -C dist "swarm-conductor-${ARCH}" \
-              README.md
+              -C "$STAGING" swarm-conductor README.md
+            rm -rf "$STAGING"
           done
 
           cd dist/release
           shasum -a 256 *.tar.gz | tee sha256sums.txt
+          cat sha256sums.txt
 
       - name: Update Formula sha256
         run: |
