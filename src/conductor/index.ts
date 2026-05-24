@@ -87,7 +87,9 @@ export class Conductor {
     this.dag.onStatusChange((taskId, prev, next) => {
       this.emit("task.status_changed", { taskId, prev, next })
       const task = this.dag.getTask(taskId)
-      if (task) this.store.upsertTask(task)
+      if (task) {
+        try { this.store.upsertTask(task) } catch { /* db may be closed during shutdown */ }
+      }
     })
   }
 
@@ -185,6 +187,7 @@ export class Conductor {
   }
 
   private async dispatch(agentId: string, task: TaskNode): Promise<void> {
+    this.activeDispatches++
     const client = this.agentMgr.getClient(agentId)
 
     const contextEntries = this.store.getContext(task.scope)
@@ -254,12 +257,16 @@ export class Conductor {
 
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      this.dag.fail(task.id, msg)
-      this.store.logEvent(agentId, task.id, "task.failed", { title: task.title, error: msg })
+      // Ignore writes to a closed DB (happens when shutdown races an in-flight dispatch)
+      if (!msg.includes("closed database")) {
+        this.dag.fail(task.id, msg)
+        try { this.store.logEvent(agentId, task.id, "task.failed", { title: task.title, error: msg }) } catch { /* db closed */ }
+      }
     } finally {
       this.lockRegistry.releaseByTask(task.id)
       this.emit("lock.released", { taskId: task.id })
       this.agentMgr.markIdle(agentId)
+      this.activeDispatches--
     }
   }
 
@@ -330,8 +337,16 @@ export class Conductor {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+  // Active dispatch count — shutdown waits for all to drain
+  private activeDispatches = 0
+
   async shutdown(): Promise<void> {
     this.stopScheduler()
+    // Wait for in-flight dispatches to finish before closing the DB
+    const deadline = Date.now() + 30_000
+    while (this.activeDispatches > 0 && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 100))
+    }
     await this.agentMgr.stopAll()
     this.store.close()
   }

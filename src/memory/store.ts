@@ -267,7 +267,11 @@ export class ConductorStore {
     return { ...s, avgDurationMs: d.avg_ms ?? 0 }
   }
 
+  private closed = false
+
   close(): void {
+    if (this.closed) return
+    this.closed = true
     this.db.close()
   }
 }

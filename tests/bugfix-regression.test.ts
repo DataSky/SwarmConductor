@@ -121,3 +121,42 @@ describe("dispatch pre-await markBusy (Bug 6)", () => {
     expect(markBusyPos).toBeLessThan(firstAwaitPos)
   })
 })
+
+// ── Bug 7: "Cannot use a closed database" on timeout ─────────────────────────
+// shutdown() used to close the DB while dispatch() coroutines were still running.
+// Fix: shutdown waits for activeDispatches to drain; DB writes are guarded with try/catch.
+
+describe("Shutdown race safety (Bug 7)", () => {
+  it("conductor source has activeDispatches drain loop in shutdown", async () => {
+    const src = await Bun.file("src/conductor/index.ts").text()
+    expect(src).toContain("activeDispatches")
+    expect(src).toContain("while (this.activeDispatches > 0")
+    expect(src).toContain("this.activeDispatches++")
+    expect(src).toContain("this.activeDispatches--")
+  })
+
+  it("onStatusChange upsertTask is wrapped in try/catch", async () => {
+    const src = await Bun.file("src/conductor/index.ts").text()
+    // The callback must guard the DB write
+    expect(src).toContain("try { this.store.upsertTask(task) } catch")
+  })
+
+  it("dispatch catch block ignores closed-database errors", async () => {
+    const src = await Bun.file("src/conductor/index.ts").text()
+    expect(src).toContain("closed database")
+  })
+
+  it("ConductorStore.close() is idempotent — second close does not throw", () => {
+    const { ConductorStore } = require("../src/memory/store")
+    const { mkdirSync, rmSync } = require("fs")
+    const { join } = require("path")
+    const dir = join(process.cwd(), ".test-store-close")
+    mkdirSync(dir, { recursive: true })
+    const store = new ConductorStore(dir, "run-close-test")
+    store.initRun(dir)
+    store.close()
+    // Second close must not throw
+    expect(() => store.close()).not.toThrow()
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
