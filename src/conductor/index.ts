@@ -177,7 +177,6 @@ export class Conductor {
       const turn = await client.postTurn(thread.id, {
         prompt: fullPrompt,
         auto_approve: this.config.autoApprove,
-        role: task.role,
         fork_context: task.forkContext,
       })
 

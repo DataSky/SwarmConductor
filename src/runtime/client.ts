@@ -1,12 +1,13 @@
-import type { AgentRole } from "../dag/types"
-
 // ─── CodeWhale HTTP Runtime API 客户端 ──────────────────────────────────────
-// 对应 codewhale serve --http（默认 localhost:7878）
+// SSE events endpoint: GET /v1/threads/{id}/events?since_seq=N
+// Returns Server-Sent Events stream: "event: xxx\ndata: {...}\n\n"
 
 export interface CWThread {
   id: string
   created_at: string
-  title: string | null
+  workspace: string
+  mode: string
+  auto_approve: boolean
 }
 
 export interface CWTurn {
@@ -14,12 +15,17 @@ export interface CWTurn {
   thread_id: string
   status: "queued" | "in_progress" | "completed" | "failed" | "interrupted" | "canceled"
   created_at: string
-  completed_at: string | null
+  started_at: string | null
+  ended_at: string | null
+  duration_ms: number | null
+  input_summary: string
 }
 
 export interface CWSSEEvent {
   seq: number
   thread_id: string
+  turn_id: string | null
+  item_id: string | null
   event: string
   payload: Record<string, unknown>
 }
@@ -27,7 +33,6 @@ export interface CWSSEEvent {
 export interface TurnOptions {
   prompt: string
   auto_approve?: boolean
-  role?: AgentRole
   fork_context?: boolean
 }
 
@@ -48,7 +53,10 @@ export class CodeWhaleClient {
 
   async health(): Promise<boolean> {
     try {
-      const r = await fetch(`${this.base}/health`, { headers: this.headers() })
+      const r = await fetch(`${this.base}/health`, {
+        headers: this.headers(),
+        signal: AbortSignal.timeout(3000),
+      })
       return r.ok
     } catch {
       return false
@@ -74,12 +82,12 @@ export class CodeWhaleClient {
     return r.json() as Promise<CWThread>
   }
 
+  /** Returns the turn object. CodeWhale response wraps it as { thread, turn }. */
   async postTurn(threadId: string, opts: TurnOptions): Promise<CWTurn> {
     const body: Record<string, unknown> = {
-      message: opts.prompt,
+      prompt: opts.prompt,
       auto_approve: opts.auto_approve ?? false,
     }
-    if (opts.role) body["role"] = opts.role
     if (opts.fork_context !== undefined) body["fork_context"] = opts.fork_context
 
     const r = await fetch(`${this.base}/v1/threads/${threadId}/turns`, {
@@ -88,58 +96,87 @@ export class CodeWhaleClient {
       body: JSON.stringify(body),
     })
     if (!r.ok) throw new Error(`postTurn failed: ${r.status} ${await r.text()}`)
-    return r.json() as Promise<CWTurn>
+    const data = await r.json() as { turn?: CWTurn } | CWTurn
+    // API returns { thread, turn } wrapper
+    return ("turn" in data && data.turn ? data.turn : data) as CWTurn
   }
 
-  async getTurn(threadId: string, turnId: string): Promise<CWTurn> {
-    const r = await fetch(`${this.base}/v1/threads/${threadId}/turns/${turnId}`, {
-      headers: this.headers(),
-    })
-    if (!r.ok) throw new Error(`getTurn failed: ${r.status}`)
-    return r.json() as Promise<CWTurn>
-  }
-
-  /** Poll turn until terminal status, collecting full text output. */
+  /**
+   * Stream SSE events until turn reaches terminal state.
+   * Collects only agent_message deltas (not agent_reasoning).
+   * SSE format: "event: xxx\ndata: {...}\n\n"
+   */
   async waitForTurn(
     threadId: string,
-    turnId: string,
+    _turnId: string,
     onDelta?: (text: string) => void,
     timeoutMs = 1_800_000
-  ): Promise<{ turn: CWTurn; fullText: string }> {
-    const deadline = Date.now() + timeoutMs
-    let lastSeq = 0
+  ): Promise<{ status: CWTurn["status"]; fullText: string }> {
+    const url = `${this.base}/v1/threads/${threadId}/events?since_seq=0`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
     let fullText = ""
+    const terminalEvents = new Set(["turn.completed", "turn.failed", "turn.interrupted"])
 
-    while (Date.now() < deadline) {
-      const events = await this.pollEvents(threadId, lastSeq)
+    try {
+      const r = await fetch(url, {
+        headers: { ...this.headers(), Accept: "text/event-stream" },
+        signal: controller.signal,
+      })
+      if (!r.ok) throw new Error(`SSE connect failed: ${r.status}`)
+      if (!r.body) throw new Error("No response body")
 
-      for (const ev of events) {
-        lastSeq = Math.max(lastSeq, ev.seq)
+      const reader = r.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ""
+      let finalStatus: CWTurn["status"] = "completed"
 
-        if (ev.event === "item.delta") {
-          const delta = (ev.payload["delta"] as string) ?? ""
-          fullText += delta
-          onDelta?.(delta)
-        }
+      outer: while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-        if (ev.event === "turn.completed" || ev.event === "turn.failed" || ev.event === "turn.interrupted") {
-          const turn = await this.getTurn(threadId, turnId)
-          return { turn, fullText }
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split("\n")
+        buf = lines.pop() ?? ""
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            // event name captured in data line's ev.event field
+          } else if (line.startsWith("data: ")) {
+            const raw = line.slice(6).trim()
+            try {
+              const ev = JSON.parse(raw) as CWSSEEvent
+
+              if (ev.event === "item.delta") {
+                const payload = ev.payload as { delta?: string; kind?: string }
+                if (payload.kind === "agent_message" && payload.delta) {
+                  fullText += payload.delta
+                  onDelta?.(payload.delta)
+                }
+              }
+
+              if (terminalEvents.has(ev.event)) {
+                // Extract turn status from payload
+                const turnPayload = ev.payload as { turn?: { status?: string } }
+                finalStatus = (turnPayload.turn?.status as CWTurn["status"]) ?? "completed"
+                break outer
+              }
+            } catch {
+              // skip malformed SSE data line
+            }
+          }
+          // blank line = SSE event separator
+          else if (line === "") {
+            // reset handled implicitly
+          }
         }
       }
 
-      await sleep(200)
+      return { status: finalStatus, fullText }
+    } finally {
+      clearTimeout(timer)
     }
-
-    throw new Error(`Turn ${turnId} timed out after ${timeoutMs}ms`)
-  }
-
-  async pollEvents(threadId: string, sinceSeq: number): Promise<CWSSEEvent[]> {
-    const url = `${this.base}/v1/threads/${threadId}/events?since_seq=${sinceSeq}`
-    const r = await fetch(url, { headers: this.headers() })
-    if (!r.ok) throw new Error(`pollEvents failed: ${r.status}`)
-    const data = await r.json() as { events?: CWSSEEvent[] }
-    return data.events ?? []
   }
 
   /** Interrupt the current in-progress turn. */
@@ -148,7 +185,7 @@ export class CodeWhaleClient {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ action: "interrupt" }),
-    })
+    }).catch(() => {})
   }
 }
 

@@ -30,16 +30,20 @@ export class AgentProcessManager {
       lastHeartbeat: Date.now(),
     }
 
+    // codewhale serve passes args through to codewhale-tui serve
+    // --insecure disables auth requirement (safe for localhost-only conductor use)
     const proc = spawn({
       cmd: [
         this.config.codewhalebin,
         "serve",
         "--http",
         "--port", String(port),
-        "--dir", this.config.projectPath,
+        "--insecure",
       ],
+      cwd: this.config.projectPath,
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env },
     })
 
     instance.pid = proc.pid
@@ -49,13 +53,15 @@ export class AgentProcessManager {
     const client = new CodeWhaleClient(port)
     this.clients.set(id, client)
 
-    // Wait for the HTTP server to become ready
     try {
       await client.waitUntilReady(30_000)
       instance.status = "idle"
     } catch (err) {
       instance.status = "crashed"
       proc.kill()
+      this.instances.delete(id)
+      this.processes.delete(id)
+      this.clients.delete(id)
       throw new Error(`Agent ${id} (port ${port}) failed to start: ${err}`)
     }
 
@@ -63,6 +69,7 @@ export class AgentProcessManager {
   }
 
   async spawnPool(roles: AgentRole[]): Promise<AgentInstance[]> {
+    // Spawn concurrently
     return Promise.all(roles.map(r => this.spawn(r)))
   }
 
@@ -104,23 +111,33 @@ export class AgentProcessManager {
     inst.status = "crashed"
   }
 
-  /** Attempt to restart a crashed agent on the same port. */
+  heartbeat(agentId: string): void {
+    const inst = this.instances.get(agentId)
+    if (inst) inst.lastHeartbeat = Date.now()
+  }
+
+  /** Restart a crashed agent on its same port. */
   async restart(agentId: string): Promise<void> {
     const inst = this.mustGet(agentId)
     const oldProc = this.processes.get(agentId)
     oldProc?.kill()
 
     inst.status = "starting"
+    inst.currentTaskId = null
+    inst.threadId = null
+
     const proc = spawn({
       cmd: [
         this.config.codewhalebin,
         "serve",
         "--http",
         "--port", String(inst.port),
-        "--dir", this.config.projectPath,
+        "--insecure",
       ],
+      cwd: this.config.projectPath,
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env },
     })
 
     inst.pid = proc.pid
@@ -131,8 +148,6 @@ export class AgentProcessManager {
 
     await client.waitUntilReady(30_000)
     inst.status = "idle"
-    inst.currentTaskId = null
-    inst.threadId = null
   }
 
   async stopAll(): Promise<void> {
