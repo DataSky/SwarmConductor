@@ -124,13 +124,51 @@ export interface MemoryEntry {
 
 export interface ConductorConfig {
   projectPath: string
-  maxConcurrentAgents: number     // default 10
-  basePort: number                // default 7878
-  fileLockTtlMs: number           // default 300_000 (5min)
-  deadlockTimeoutMs: number       // default 300_000
-  schedulerTickMs: number         // default 500
-  autoApprove: boolean            // pass auto_approve to CodeWhale
-  codewhalebin: string            // path to codewhale binary
+  maxConcurrentAgents: number
+  basePort: number
+  fileLockTtlMs: number
+  deadlockTimeoutMs: number
+  schedulerTickMs: number
+  autoApprove: boolean
+  codewhalebin: string
+  heartbeatIntervalMs: number
+  heartbeatTimeoutMs: number
+  maxAgentRestarts: number
+  dynamicTasks: boolean
+}
+
+export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<ConductorConfig, "projectPath">): ConductorConfig {
+  return {
+    maxConcurrentAgents: 10,
+    basePort: 7878,
+    fileLockTtlMs: 300_000,
+    deadlockTimeoutMs: 300_000,
+    schedulerTickMs: 500,
+    autoApprove: false,
+    codewhalebin: "codewhale",
+    heartbeatIntervalMs: 15_000,
+    heartbeatTimeoutMs: 45_000,
+    maxAgentRestarts: 3,
+    dynamicTasks: true,
+    ...overrides,
+  }
+}
+
+// ─── Approval gate ────────────────────────────────────────────────────────────
+
+export type ApprovalKind =
+  | "phase_boundary"   // between phases
+  | "high_risk"        // task output has RISKS that exceed threshold
+  | "merge_conflict"   // git merge failed, needs human resolution
+
+export interface ApprovalRequest {
+  id: string
+  kind: ApprovalKind
+  message: string
+  context: Record<string, unknown>
+  createdAt: number
+  resolvedAt: number | null
+  decision: "approved" | "rejected" | null
 }
 
 // ─── Events emitted by conductor ─────────────────────────────────────────────
@@ -138,12 +176,18 @@ export interface ConductorConfig {
 export type ConductorEventKind =
   | "task.status_changed"
   | "agent.status_changed"
+  | "agent.crashed"
+  | "agent.restarted"
   | "lock.acquired"
   | "lock.released"
   | "deadlock.detected"
   | "phase.started"
   | "phase.completed"
   | "approval.required"
+  | "approval.resolved"
+  | "task.dynamic_inserted"
+  | "run.completed"
+  | "run.failed"
 
 export interface ConductorEvent {
   kind: ConductorEventKind

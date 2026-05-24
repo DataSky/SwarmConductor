@@ -7,14 +7,14 @@ import { describe, it, expect, beforeAll, afterAll } from "bun:test"
 import { AgentProcessManager } from "../src/runtime/agent-manager"
 import { FileLockRegistry } from "../src/workspace/file-lock"
 import { SharedMemoryBus } from "../src/memory/bus"
-import type { ConductorConfig } from "../src/dag/types"
+import { defaultConfig } from "../src/dag/types"
 import { mkdirSync, rmSync } from "fs"
 import { join } from "path"
 
 const TMP_DIR = join(process.cwd(), ".test-parallel-run")
 const BASE_PORT = 18100
 
-const config: ConductorConfig = {
+const config = defaultConfig({
   projectPath: TMP_DIR,
   maxConcurrentAgents: 5,
   basePort: BASE_PORT,
@@ -23,7 +23,7 @@ const config: ConductorConfig = {
   schedulerTickMs: 200,
   autoApprove: true,
   codewhalebin: "codewhale",
-}
+})
 
 let agentMgr: AgentProcessManager
 
