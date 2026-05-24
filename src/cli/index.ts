@@ -2,12 +2,13 @@
 import { Conductor } from "../conductor"
 import { createTaskNode } from "../dag/engine"
 import { defaultConfig } from "../dag/types"
-import type { ConductorConfig, ConductorEvent } from "../dag/types"
+import type { ConductorConfig } from "../dag/types"
 import { writeFileSync } from "fs"
 import { join } from "path"
 import { loadTaskFile } from "./task-file"
 import { goalToTaskGraph } from "./goal-planner"
 import { InteractiveRunner } from "./interactive"
+import { LiveView } from "./live-view"
 
 // ─── ANSI helpers ─────────────────────────────────────────────────────────────
 
@@ -29,62 +30,6 @@ function statusColor(s: string): string {
   }
 }
 
-function bar(done: number, total: number, width = 28): string {
-  if (total === 0) return `[${" ".repeat(width)}]`
-  const filled = Math.round((done / total) * width)
-  return `[${C.green}${"█".repeat(filled)}${C.reset}${"░".repeat(width - filled)}]`
-}
-
-function renderDashboard(conductor: Conductor, eventLog: string[]): void {
-  const s = conductor.status()
-  const tasks = conductor.taskDag.allTasks()
-  const now = new Date().toLocaleTimeString("en-GB", { hour12: false })
-
-  process.stdout.write("\x1b[2J\x1b[H")
-  console.log(`${C.bold}╔══════════════════════════════════════════════════╗${C.reset}`)
-  console.log(`${C.bold}║         SWARM CONDUCTOR  v0.1.1    ${C.gray}${now}${C.reset}${C.bold}  ║${C.reset}`)
-  console.log(`${C.bold}╚══════════════════════════════════════════════════╝${C.reset}`)
-  console.log()
-
-  const done = s.tasks.done
-  const total = s.tasks.total
-  const pct = total === 0 ? 0 : Math.round((done / total) * 100)
-  console.log(`  Phase ${C.bold}${s.phase}${C.reset}  ${bar(done, total)}  ${done}/${total} (${pct}%)`)
-  console.log(`  ${C.cyan}running:${s.tasks.running}${C.reset}  ${C.blue}ready:${s.tasks.ready}${C.reset}  ${C.dim}blocked:${s.tasks.blocked}${C.reset}  ${C.red}failed:${s.tasks.failed}${C.reset}`)
-  console.log()
-  console.log(`  ${C.bold}Agents${C.reset}  idle:${C.green}${s.agents.idle}${C.reset}  busy:${C.cyan}${s.agents.busy}${C.reset}  crashed:${C.red}${s.agents.crashed}${C.reset}  locks:${s.locks}`)
-
-  // Live token counter
-  try {
-    const tok = conductor.store.tokenStats()
-    if (tok.totalTokens > 0) {
-      const hitBadge = tok.cacheHitRate > 0 ? ` ${C.green}cache:${tok.cacheHitRate}%${C.reset}` : ""
-      console.log(`  ${C.bold}Tokens${C.reset}  in:${C.yellow}${tok.inputTokens.toLocaleString()}${C.reset}  out:${C.cyan}${tok.outputTokens.toLocaleString()}${C.reset}  total:${C.bold}${tok.totalTokens.toLocaleString()}${C.reset}${hitBadge}`)
-    }
-  } catch { /* db may not be ready */ }
-  if (s.pendingApprovals > 0) {
-    console.log(`  ${C.yellow}${C.bold}⏸  ${s.pendingApprovals} approval(s) pending${C.reset}`)
-  }
-  console.log()
-
-  const shown = tasks.slice(0, 15)
-  console.log(`  ${C.bold}${"STATUS".padEnd(11)} ${"TYPE".padEnd(11)} ${"TITLE".padEnd(36)}${C.reset}`)
-  console.log(`  ${"─".repeat(60)}`)
-  for (const t of shown) {
-    const sc = statusColor(t.status)
-    const dyn = t.dependsOn.length > 0 && t.retryCount === 0 && t.status === "ready"
-      ? `${C.magenta}↑${C.reset}` : " "
-    console.log(`  ${sc}${t.status.padEnd(11)}${C.reset} ${C.dim}${t.type.padEnd(11)}${C.reset} ${dyn}${t.title.slice(0, 36)}`)
-  }
-  if (tasks.length > 15) console.log(`  ${C.dim}... and ${tasks.length - 15} more${C.reset}`)
-  console.log()
-
-  console.log(`  ${C.bold}Recent events${C.reset}`)
-  console.log(`  ${"─".repeat(60)}`)
-  for (const line of eventLog.slice(-5)) {
-    console.log(`  ${C.gray}${line}${C.reset}`)
-  }
-}
 
 // ─── Final report ─────────────────────────────────────────────────────────────
 
@@ -298,30 +243,21 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   await conductor.spawnAgents(roles)
   console.log(`✓ Ready\n`)
 
-  // ── Attach interactive runner ──────────────────────────────────────────────
-  const interactive = new InteractiveRunner(conductor, noInteract)
+  // ── Start LiveView (replaces old dashboard + interactive runner) ───────────
+  const liveView = new LiveView(conductor)
+  liveView.start()
+
+  const interactive = new InteractiveRunner(conductor, noInteract, liveView)
   interactive.attach()
-
-  // ── Dashboard render loop ──────────────────────────────────────────────────
-  const eventLog: string[] = []
-  conductor.onEvent((e: ConductorEvent) => {
-    const ts = new Date(e.timestamp).toLocaleTimeString("en-GB", { hour12: false })
-    const detail = e.payload["taskId"] ? ` task:${String(e.payload["taskId"]).slice(0, 8)}` : ""
-    eventLog.push(`[${ts}] ${e.kind}${detail}`)
-  })
-
-  // Only render dashboard if no-interact (interactive mode prints its own output)
-  const renderInterval = noInteract
-    ? setInterval(() => renderDashboard(conductor, eventLog), 500)
-    : null
 
   const startMs = Date.now()
   conductor.startScheduler()
   const result = await conductor.waitForCompletion(3_600_000)
   const wallMs = Date.now() - startMs
 
-  if (renderInterval) clearInterval(renderInterval)
+  liveView.stop()
 
+  // Clear screen, then print final report
   process.stdout.write("\x1b[2J\x1b[H")
   console.log(result === "completed"
     ? `${C.green}${C.bold}✓ Run completed${C.reset}`

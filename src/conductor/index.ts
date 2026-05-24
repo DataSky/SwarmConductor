@@ -63,6 +63,7 @@ export class Conductor {
   private conductorDir: string
   private tickInterval: ReturnType<typeof setInterval> | null = null
   private eventListeners: Array<(e: ConductorEvent) => void> = []
+  private streamListeners: Array<(agentId: string, task: TaskNode, delta: string) => void> = []
   private agentInstructions: string
   readonly runId: string
 
@@ -221,7 +222,11 @@ export class Conductor {
       })
 
       const { fullText, status, usage } = await client.waitForTurn(
-        thread.id, turn.id, undefined, this.config.fileLockTtlMs,
+        thread.id, turn.id,
+        this.streamListeners.length > 0
+          ? (delta) => { for (const cb of this.streamListeners) cb(agentId, task, delta) }
+          : undefined,
+        this.config.fileLockTtlMs,
       )
 
       if (status === "failed" || status === "interrupted") {
@@ -331,6 +336,11 @@ export class Conductor {
   // ── Events ────────────────────────────────────────────────────────────────
 
   onEvent(cb: (e: ConductorEvent) => void): void { this.eventListeners.push(cb) }
+
+  // Subscribe to real-time token deltas from running agents
+  onStream(cb: (agentId: string, task: TaskNode, delta: string) => void): void {
+    this.streamListeners.push(cb)
+  }
 
   private emit(kind: ConductorEventKind, payload: Record<string, unknown>): void {
     const event: ConductorEvent = { kind, payload, timestamp: Date.now() }
