@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm Conductor — Self-Analysis Report</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --cyan: #39c5cf;
+    --orange: #ffa657;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace; font-size: 14px; line-height: 1.6; }
+
+  /* ── Layout ── */
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid2,.grid3,.grid4 { grid-template-columns: 1fr; } }
+
+  /* ── Header ── */
+  .header { border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 32px; }
+  .header h1 { font-size: 24px; font-weight: 600; color: #fff; }
+  .header .subtitle { color: var(--text-dim); margin-top: 4px; font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-left: 8px; vertical-align: middle; }
+  .badge-green { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+  .badge-red { background: rgba(248,81,73,.15); color: var(--red); border: 1px solid rgba(248,81,73,.3); }
+  .badge-yellow { background: rgba(210,153,34,.15); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
+  .badge-blue { background: rgba(88,166,255,.15); color: var(--blue); border: 1px solid rgba(88,166,255,.3); }
+
+  /* ── Cards ── */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+  .stat-value { font-size: 36px; font-weight: 700; color: #fff; line-height: 1; }
+  .stat-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ── Pipeline diagram ── */
+  .pipeline { display: flex; align-items: center; gap: 0; padding: 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+  .phase-block { flex: 1; min-width: 120px; text-align: center; }
+  .phase-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 14px 10px; position: relative; }
+  .phase-box.explore { border-color: var(--blue); }
+  .phase-box.review  { border-color: var(--purple); }
+  .phase-box.plan    { border-color: var(--cyan); }
+  .phase-icon { font-size: 22px; margin-bottom: 6px; }
+  .phase-name { font-size: 13px; font-weight: 600; color: #fff; }
+  .phase-count { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .phase-agents { font-size: 11px; color: var(--green); margin-top: 4px; }
+  .arrow { padding: 0 8px; color: var(--text-dim); font-size: 18px; flex-shrink: 0; }
+  .parallel-badge { position: absolute; top: -10px; right: -10px; background: var(--green); color: #000; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; }
+
+  /* ── Task flow ── */
+  .task-flow { display: flex; flex-direction: column; gap: 8px; }
+  .task-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg3); border-radius: 6px; border-left: 3px solid var(--border); }
+  .task-row.explore { border-left-color: var(--blue); }
+  .task-row.review  { border-left-color: var(--purple); }
+  .task-row.plan    { border-left-color: var(--cyan); }
+  .task-row.done    { opacity: 1; }
+  .task-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-done { background: var(--green); }
+  .dot-timeout { background: var(--yellow); }
+  .task-title { flex: 1; font-size: 13px; }
+  .task-type-badge { font-size: 11px; color: var(--text-dim); background: var(--bg2); padding: 2px 8px; border-radius: 4px; }
+  .task-duration { font-size: 11px; color: var(--text-dim); min-width: 50px; text-align: right; }
+
+  /* ── Severity bars ── */
+  .severity-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .severity-label { font-size: 12px; min-width: 60px; }
+  .severity-bar-track { flex: 1; height: 8px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .severity-bar { height: 100%; border-radius: 4px; transition: width .6s ease; }
+  .bar-red    { background: linear-gradient(90deg, var(--red), #ff6b6b); }
+  .bar-yellow { background: linear-gradient(90deg, var(--yellow), #ffcc00); }
+  .bar-green  { background: linear-gradient(90deg, var(--green), #7ef9a0); }
+  .severity-count { font-size: 12px; min-width: 24px; text-align: right; color: var(--text-dim); }
+
+  /* ── Findings list ── */
+  .finding { padding: 12px 14px; background: var(--bg3); border-radius: 6px; margin-bottom: 8px; }
+  .finding-header { display: flex; align-items: flex-start; gap: 10px; }
+  .finding-icon { flex-shrink: 0; margin-top: 1px; }
+  .finding-title { font-size: 13px; font-weight: 500; flex: 1; }
+  .finding-body { font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+  .finding-source { font-size: 11px; color: var(--text-dim); margin-top: 6px; font-family: monospace; }
+  .icon-high { color: var(--red); }
+  .icon-med  { color: var(--yellow); }
+  .icon-low  { color: var(--green); }
+
+  /* ── Architecture diagram ── */
+  .arch { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .arch-layer { padding: 16px; background: var(--bg3); border-radius: 8px; }
+  .arch-layer h3 { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+  .arch-box { padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .arch-box .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .arch-box:hover { border-color: var(--blue); }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .timeline-item { position: relative; margin-bottom: 16px; }
+  .timeline-item::before { content: ''; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg2); }
+  .timeline-item.done::before { background: var(--green); border-color: var(--green); }
+  .timeline-item.timeout::before { background: var(--yellow); border-color: var(--yellow); }
+  .timeline-time { font-size: 11px; color: var(--text-dim); }
+  .timeline-title { font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .timeline-desc { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ── Section titles ── */
+  .section { margin-bottom: 32px; }
+  .section-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); margin-left: 8px; }
+
+  /* ── Scrollable table ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: var(--bg3); }
+  code { font-family: monospace; font-size: 12px; background: var(--bg3); padding: 1px 5px; border-radius: 3px; color: var(--blue); }
+  .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+  /* ── Footer ── */
+  .footer { border-top: 1px solid var(--border); margin-top: 48px; padding-top: 16px; font-size: 12px; color: var(--text-dim); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ───────────────────────────────────────────────────────────── -->
+  <div class="header">
+    <h1>Swarm Conductor
+      <span class="badge badge-blue">Self-Analysis</span>
+      <span class="badge badge-green">v0.1.2</span>
+    </h1>
+    <div class="subtitle">9 agents × 3 phases — 分析自身 2,457 行 TypeScript 代码 &nbsp;·&nbsp; 2026-05-24</div>
+  </div>
+
+  <!-- ── Stats row ─────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="grid4">
+      <div class="card">
+        <h2>任务完成率</h2>
+        <div class="stat-value" style="color:var(--green)">8 / 9</div>
+        <div class="stat-sub">1 个 plan 任务接近 900s 上限</div>
+      </div>
+      <div class="card">
+        <h2>并发 Agents</h2>
+        <div class="stat-value" style="color:var(--blue)">9</div>
+        <div class="stat-sub">5 explore + 3 review + 1 plan</div>
+      </div>
+      <div class="card">
+        <h2>总耗时</h2>
+        <div class="stat-value" style="color:var(--purple)">900s</div>
+        <div class="stat-sub">平均单任务 197s · 最快 128s</div>
+      </div>
+      <div class="card">
+        <h2>发现 & 修复</h2>
+        <div class="stat-value" style="color:var(--orange)">6</div>
+        <div class="stat-sub">关键 bug 全部已修复并加入回归测试</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Pipeline ──────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">执行流水线</div>
+    <div class="pipeline">
+      <div class="phase-block">
+        <div class="phase-box explore">
+          <div class="parallel-badge">×5 并行</div>
+          <div class="phase-icon">🔍</div>
+          <div class="phase-name">Phase 0 · Explore</div>
+          <div class="phase-count">5 个 explore agent</div>
+          <div class="phase-agents">✓ 全部完成</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="phase-block">
+        <div class="phase-box review">
+          <div class="parallel-badge">×3 并行</div>
+          <div class="phase-icon">📋</div>
+          <div class="phase-name">Phase 1 · Review</div>
+          <div class="phase-count">3 个 review agent</div>
+          <div class="phase-agents">✓ 全部完成</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="phase-block">
+        <div class="phase-box plan">
+          <div class="phase-icon">📐</div>
+          <div class="phase-name">Phase 2 · Synthesize</div>
+          <div class="phase-count">1 个 plan agent</div>
+          <div class="phase-agents" style="color:var(--yellow)">⚠ 900s 超时</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Architecture ───────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">系统架构</div>
+    <div class="card">
+      <div class="arch">
+        <div>
+          <div class="arch-layer">
+            <h3>🎯 调度核心</h3>
+            <div class="arch-box"><span class="dot" style="background:var(--blue)"></span><code>Conductor</code> 主调度器 · tick loop</div>
+            <div class="arch-box"><span class="dot" style="background:var(--blue)"></span><code>TaskDAG</code> 有向无环图 · 状态机</div>
+            <div class="arch-box"><span class="dot" style="background:var(--blue)"></span><code>FileLockRegistry</code> 文件级并发锁</div>
+            <div class="arch-box"><span class="dot" style="background:var(--blue)"></span><code>ApprovalGate</code> Human-in-the-loop</div>
+          </div>
+          <div class="arch-layer" style="margin-top:12px">
+            <h3>🤖 Agent 运行时</h3>
+            <div class="arch-box"><span class="dot" style="background:var(--green)"></span><code>AgentProcessManager</code> 进程池</div>
+            <div class="arch-box"><span class="dot" style="background:var(--green)"></span><code>CodeWhaleClient</code> SSE 流客户端</div>
+            <div class="arch-box"><span class="dot" style="background:var(--green)"></span><code>CrashRecovery</code> 心跳 + 自动重启</div>
+          </div>
+        </div>
+        <div>
+          <div class="arch-layer">
+            <h3>💾 持久化层</h3>
+            <div class="arch-box"><span class="dot" style="background:var(--purple)"></span><code>ConductorStore</code> SQLite · WAL</div>
+            <div class="arch-box"><span class="dot" style="background:var(--purple)"></span><code>memory_tags</code> 联结表 · O(1) 查询</div>
+            <div class="arch-box"><span class="dot" style="background:var(--purple)"></span>runs / tasks / memory / event_log</div>
+          </div>
+          <div class="arch-layer" style="margin-top:12px">
+            <h3>🌿 工作区隔离</h3>
+            <div class="arch-box"><span class="dot" style="background:var(--orange)"></span><code>GitWorkspaceManager</code> 分支隔离</div>
+            <div class="arch-box"><span class="dot" style="background:var(--orange)"></span>agent/xx/task-yy 独立分支</div>
+            <div class="arch-box"><span class="dot" style="background:var(--orange)"></span>Phase 结束自动合并 · 冲突上报</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Task execution timeline ────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">任务执行详情</div>
+    <div class="grid2">
+      <div class="card">
+        <h2>执行顺序 & 状态</h2>
+        <div class="task-flow">
+          <div class="task-row explore done"><div class="task-dot dot-done"></div><div class="task-title">Explore: File lock & Git workspace</div><div class="task-type-badge">explore</div><div class="task-duration">128s</div></div>
+          <div class="task-row explore done"><div class="task-dot dot-done"></div><div class="task-title">Explore: SQLite store & memory bus</div><div class="task-type-badge">explore</div><div class="task-duration">155s</div></div>
+          <div class="task-row explore done"><div class="task-dot dot-done"></div><div class="task-title">Explore: Conductor scheduler</div><div class="task-type-badge">explore</div><div class="task-duration">178s</div></div>
+          <div class="task-row explore done"><div class="task-dot dot-done"></div><div class="task-title">Explore: DAG engine & types</div><div class="task-type-badge">explore</div><div class="task-duration">191s</div></div>
+          <div class="task-row explore done"><div class="task-dot dot-done"></div><div class="task-title">Explore: Runtime client & agent manager</div><div class="task-type-badge">explore</div><div class="task-duration">232s</div></div>
+          <div class="task-row review done"><div class="task-dot dot-done"></div><div class="task-title">Review: Crash recovery correctness</div><div class="task-type-badge">review</div><div class="task-duration">184s</div></div>
+          <div class="task-row review done"><div class="task-dot dot-done"></div><div class="task-title">Review: Test coverage gaps</div><div class="task-type-badge">review</div><div class="task-duration">196s</div></div>
+          <div class="task-row review done"><div class="task-dot dot-done"></div><div class="task-title">Review: Performance & scalability</div><div class="task-type-badge">review</div><div class="task-duration">203s</div></div>
+          <div class="task-row plan" style="opacity:.6"><div class="task-dot dot-timeout"></div><div class="task-title">Synthesize: Improvement roadmap</div><div class="task-type-badge">plan</div><div class="task-duration" style="color:var(--yellow)">⚠ 900s</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>风险分布（按严重度）</h2>
+        <div style="margin-bottom:16px">
+          <div class="severity-row">
+            <span class="severity-label" style="color:var(--red)">🔴 High</span>
+            <div class="severity-bar-track"><div class="severity-bar bar-red" style="width:70%"></div></div>
+            <span class="severity-count">7</span>
+          </div>
+          <div class="severity-row">
+            <span class="severity-label" style="color:var(--yellow)">🟡 Medium</span>
+            <div class="severity-bar-track"><div class="severity-bar bar-yellow" style="width:50%"></div></div>
+            <span class="severity-count">5</span>
+          </div>
+          <div class="severity-row">
+            <span class="severity-label" style="color:var(--green)">🟢 Low</span>
+            <div class="severity-bar-track"><div class="severity-bar bar-green" style="width:30%"></div></div>
+            <span class="severity-count">3</span>
+          </div>
+        </div>
+        <h2 style="margin-top:20px">覆盖模块</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          <span class="badge badge-blue">DAG Engine</span>
+          <span class="badge badge-blue">Conductor</span>
+          <span class="badge badge-blue">Runtime Client</span>
+          <span class="badge badge-blue">Agent Manager</span>
+          <span class="badge badge-blue">SQLite Store</span>
+          <span class="badge badge-blue">File Lock</span>
+          <span class="badge badge-blue">Git Manager</span>
+          <span class="badge badge-blue">Crash Recovery</span>
+          <span class="badge badge-blue">Dynamic Tasks</span>
+          <span class="badge badge-blue">Approval Gate</span>
+        </div>
+        <h2 style="margin-top:20px">SQLite 写入性能</h2>
+        <div style="margin-top:8px">
+          <div style="font-size:28px;font-weight:700;color:var(--green)">0.04<span style="font-size:14px;font-weight:400;color:var(--text-dim)"> ms / task</span></div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:2px">1,000 次 upsert = 37ms · WAL 模式</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Key Findings ───────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">关键发现（已修复）</div>
+    <div class="grid2">
+
+      <div class="finding">
+        <div class="finding-header">
+          <span class="finding-icon icon-high">🔴</span>
+          <span class="finding-title">双重调度竞态条件</span>
+          <span class="badge badge-green">已修复</span>
+        </div>
+        <div class="finding-body"><code>markBusy</code> 和 <code>dag.assign</code> 原本在第一个 <code>await</code> 之后执行，同一 agent 可能在同一 tick 内被分配两次，导致两个任务同时写入相同文件。</div>
+        <div class="finding-source">src/conductor/index.ts — dispatch() 同步段前移</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-header">
+          <span class="finding-icon icon-high">🔴</span>
+          <span class="finding-title">SSE 断连默认成功</span>
+          <span class="badge badge-green">已修复</span>
+        </div>
+        <div class="finding-body">连接异常断开时 <code>finalStatus</code> 默认为 <code>"completed"</code>，不完整输出被当作成功结果，下游任务基于错误 context 继续执行。</div>
+        <div class="finding-source">src/runtime/client.ts — 默认值改为 "failed"</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-header">
+          <span class="finding-icon icon-high">🔴</span>
+          <span class="finding-title">心跳监控无互斥</span>
+          <span class="badge badge-green">已修复</span>
+        </div>
+        <div class="finding-body"><code>setInterval</code> 调用 <code>check()</code> 没有互斥标志，10+ agents 时 HTTP 健康检查累积延迟超过 interval，堆积并发调用，耗尽文件描述符。</div>
+        <div class="finding-source">src/conductor/crash-recovery.ts — checking 互斥标志</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-header">
+          <span class="finding-icon icon-high">🔴</span>
+          <span class="finding-title">addTask 反向边缺失</span>
+          <span class="badge badge-green">已修复</span>
+        </div>
+        <div class="finding-body">单任务版 <code>addTask()</code> 没有填充 <code>blocks[]</code> 反向边，下游任务在依赖完成后永远不会从 blocked 变为 ready，静默死锁。</div>
+        <div class="finding-source">src/dag/engine.ts — addTask 补充 reverse-edge 写入</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-header">
+          <span class="finding-icon icon-high">🔴</span>
+          <span class="finding-title">未知依赖 ID 静默失败</span>
+          <span class="badge badge-green">已修复</span>
+        </div>
+        <div class="finding-body"><code>dependsOn</code> 中引用不存在的 task ID 不报错，任务直接进入 blocked 状态且没有任何错误信号，生产环境中极难排查。</div>
+        <div class="finding-source">src/dag/engine.ts — 添加 throw on unknown dep</div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-header">
+          <span class="finding-icon icon-med">🟡</span>
+          <span class="finding-title">SQLite 标签 LIKE 查询</span>
+          <span class="badge badge-green">已修复</span>
+        </div>
+        <div class="finding-body">memory 表标签用 JSON 列 + <code>LIKE</code> 查询，10K+ 条记录时退化严重。新增 <code>memory_tags</code> 联结表，索引查询 O(1)，同时加 <code>busy_timeout=5000</code>。</div>
+        <div class="finding-source">src/memory/store.ts — memory_tags join table + 索引</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Remaining findings ────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">待处理发现（未修复）</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>严重度</th>
+            <th>问题</th>
+            <th>位置</th>
+            <th>触发条件</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="status-dot" style="background:var(--yellow)"></span>中</td>
+            <td>DAG <code>failed</code> 依赖无恢复路径 — 下游永远 blocked</td>
+            <td><code>dag/engine.ts</code></td>
+            <td>依赖任务重试耗尽后失败</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--yellow)"></span>中</td>
+            <td><code>restart()</code> 无错误处理 — 崩溃恢复可能无限重试</td>
+            <td><code>runtime/agent-manager.ts</code></td>
+            <td>进程重启持续失败</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--yellow)"></span>中</td>
+            <td><code>stopAll()</code> 不等待进程退出 — 端口冲突</td>
+            <td><code>runtime/agent-manager.ts</code></td>
+            <td>快速重启 conductor</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--yellow)"></span>中</td>
+            <td><code>CrashRecovery</code> 完全未被测试</td>
+            <td><code>tests/</code></td>
+            <td>心跳逻辑任何变更</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--yellow)"></span>中</td>
+            <td><code>parseTaskOutput()</code> 未被测试</td>
+            <td><code>tests/</code></td>
+            <td>LLM 格式漂移</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--green)"></span>低</td>
+            <td><code>tick()</code> O(T²) 退化 — <code>runningTasks()</code> 重复调用</td>
+            <td><code>conductor/index.ts</code></td>
+            <td>1000+ 任务 + 动态插入</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--green)"></span>低</td>
+            <td>SQLite 写入者序列化 — WAL 下仍为串行</td>
+            <td><code>memory/store.ts</code></td>
+            <td>20 agents 同时完成任务</td>
+          </tr>
+          <tr>
+            <td><span class="status-dot" style="background:var(--green)"></span>低</td>
+            <td>进程死亡后 git 残留 merge 状态无恢复</td>
+            <td><code>workspace/git-manager.ts</code></td>
+            <td>merge 过程中 SIGKILL</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── How swarm works ────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">Swarm 工作原理</div>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center">
+        <div style="padding:16px;background:var(--bg3);border-radius:8px">
+          <div style="font-size:24px;margin-bottom:8px">📝</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">用户输入</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px"><code>--goal "..."</code><br>或 tasks.yaml</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-dim)">→</div>
+        <div style="padding:16px;background:var(--bg3);border-radius:8px">
+          <div style="font-size:24px;margin-bottom:8px">🔀</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">任务图生成</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">DAG + 依赖解析<br>角色分配</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-dim)">→</div>
+        <div style="padding:16px;background:var(--bg3);border-radius:8px">
+          <div style="font-size:24px;margin-bottom:8px">⚡</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">并行调度</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">冲突检测<br>文件锁</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center;margin-top:12px">
+        <div style="padding:16px;background:var(--bg3);border-radius:8px">
+          <div style="font-size:24px;margin-bottom:8px">🤖</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">CodeWhale Agent</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">独立 HTTP 实例<br>SSE 流输出</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-dim)">→</div>
+        <div style="padding:16px;background:var(--bg3);border-radius:8px">
+          <div style="font-size:24px;margin-bottom:8px">🧠</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">共享记忆</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">SQLite 三层<br>跨 agent context</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text-dim)">→</div>
+        <div style="padding:16px;background:var(--bg3);border-radius:8px">
+          <div style="font-size:24px;margin-bottom:8px">📊</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">报告输出</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">终端摘要<br>JSON 报告</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="footer">
+    <span>Swarm Conductor v0.1.2 · <a href="https://github.com/DataSky/SwarmConductor" style="color:var(--blue);text-decoration:none">github.com/DataSky/SwarmConductor</a></span>
+    <span>生成时间：2026-05-24 · Run ID: run-1779611626262-hye72</span>
+  </div>
+
+</div>
+</body>
+</html>

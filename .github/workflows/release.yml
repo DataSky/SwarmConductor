@@ -14,6 +14,8 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for rebase during Formula update
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -66,9 +68,14 @@ jobs:
           ./scripts/update-formula.sh "$VERSION" "$ARM64_SHA" "$X64_SHA"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git reset --soft origin/main
+          # Re-apply the formula change on top of latest main
+          ./scripts/update-formula.sh "$VERSION" "$ARM64_SHA" "$X64_SHA"
           git add Formula/swarm-conductor.rb
           git commit -m "chore: update Formula sha256 for v${VERSION}" || true
-          git push origin HEAD:main
+          git push origin main
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
