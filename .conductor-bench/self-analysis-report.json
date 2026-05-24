@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-05-24T08:48:50.874Z",
+  "target": "/Users/wangteng06/AiCode/codewhale_debug",
+  "mode": "self-analysis",
+  "agentCount": 9,
+  "result": "timeout",
+  "totalWallMs": 900037,
+  "spawnMs": 4532,
+  "tasks": {
+    "total": 9,
+    "done": 8,
+    "failed": 0
+  },
+  "timings": {
+    "avg": 196658,
+    "min": 128080,
+    "max": 232384
+  },
+  "synthesis": null,
+  "runId": "run-1779611626262-hye72"
+}
