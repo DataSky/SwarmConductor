@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 780">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+    <marker id="arr-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#f04f4f" />
+    </marker>
+    <marker id="arr-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#3fb950" />
+    </marker>
+    <marker id="arr-orange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#f0a030" />
+    </marker>
+  </defs>
+
+  <rect width="960" height="780" fill="white" />
+
+  <text x="480" y="36" font-family="Arial, sans-serif" font-size="22" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Swarm Conductor - Core Execution Flow</text>
+
+  <!-- ── Step 1: Input ── -->
+  <rect x="340" y="58" width="280" height="60" rx="8" fill="#f0f4ff" stroke="#4f96f0" stroke-width="2" />
+  <text x="480" y="82" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#1a1a2e">User Input</text>
+  <text x="480" y="102" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">--goal text  /  --tasks tasks.yaml</text>
+  <line x1="480" y1="118" x2="480" y2="148" stroke="#333" stroke-width="2" marker-end="url(#arr)" />
+
+  <!-- ── Step 2: Task Graph build ── -->
+  <rect x="340" y="150" width="280" height="60" rx="8" fill="#e3f2ff" stroke="#4f96f0" stroke-width="2" />
+  <text x="480" y="174" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Build TaskDAG</text>
+  <text x="480" y="194" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">createTaskNode()  +  wire dependsOn / blocks</text>
+  <line x1="480" y1="210" x2="480" y2="240" stroke="#333" stroke-width="2" marker-end="url(#arr)" />
+
+  <!-- ── Step 3: Spawn agents ── -->
+  <rect x="340" y="242" width="280" height="60" rx="8" fill="#d4f5e2" stroke="#3fb950" stroke-width="2" />
+  <text x="480" y="266" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Spawn Agent Pool</text>
+  <text x="480" y="286" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">codewhale serve --http --port N --insecure</text>
+  <line x1="480" y1="302" x2="480" y2="332" stroke="#333" stroke-width="2" marker-end="url(#arr)" />
+
+  <!-- ── Step 4: Scheduler tick ── -->
+  <rect x="320" y="334" width="320" height="90" rx="8" fill="#fffbe6" stroke="#d4a000" stroke-width="2" />
+  <text x="480" y="356" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Scheduler tick()  every 500ms</text>
+  <text x="480" y="376" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">1. check ApprovalGate  (pause if pending)</text>
+  <text x="480" y="394" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">2. detect deadlocks  (interrupt lowest-priority)</text>
+  <text x="480" y="412" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">3. pick ready tasks  +  match idle agents</text>
+  <line x1="480" y1="424" x2="480" y2="454" stroke="#333" stroke-width="2" marker-end="url(#arr)" />
+
+  <!-- ── Step 5: Conflict check ── -->
+  <path d="M 480 456 L 560 510 L 480 564 L 400 510 Z" fill="#f3e5ff" stroke="#9c51f0" stroke-width="2" />
+  <text x="480" y="505" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#1a1a2e">scope</text>
+  <text x="480" y="523" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#1a1a2e">conflict?</text>
+
+  <!-- Yes (conflict) -> back to tick -->
+  <line x1="400" y1="510" x2="290" y2="510" stroke="#f04f4f" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-red)" />
+  <line x1="290" y1="510" x2="290" y2="379" stroke="#f04f4f" stroke-width="1.5" stroke-dasharray="5,3" />
+  <line x1="290" y1="379" x2="320" y2="379" stroke="#f04f4f" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-red)" />
+  <text x="330" y="500" font-family="Arial, sans-serif" font-size="11" fill="#f04f4f">Yes skip</text>
+
+  <!-- No (no conflict) -> acquire lock -->
+  <line x1="480" y1="564" x2="480" y2="594" stroke="#3fb950" stroke-width="2" marker-end="url(#arr-green)" />
+  <text x="496" y="582" font-family="Arial, sans-serif" font-size="11" fill="#3fb950">No</text>
+
+  <!-- ── Step 6: Acquire lock ── -->
+  <rect x="340" y="596" width="280" height="52" rx="8" fill="#e0ffe8" stroke="#3fb950" stroke-width="2" />
+  <text x="480" y="618" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Acquire FileLock</text>
+  <text x="480" y="636" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">lockRegistry.tryAcquire(scope, agentId)</text>
+  <line x1="480" y1="648" x2="480" y2="678" stroke="#333" stroke-width="2" marker-end="url(#arr)" />
+
+  <!-- ── Step 7: Dispatch ── -->
+  <rect x="340" y="680" width="280" height="52" rx="8" fill="#fde8c0" stroke="#f0a030" stroke-width="2" />
+  <text x="480" y="702" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#1a1a2e">dispatch(agentId, task)</text>
+  <text x="480" y="720" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">markBusy (sync) -> createThread -> postTurn -> SSE</text>
+
+  <!-- Right side: dispatch detail -->
+  <line x1="620" y1="706" x2="670" y2="706" stroke="#f0a030" stroke-width="1.5" marker-end="url(#arr-orange)" />
+
+  <rect x="672" y="672" width="250" height="130" rx="8" fill="#fff8ee" stroke="#f0a030" stroke-width="1.5" />
+  <text x="797" y="694" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#f0a030">CodeWhale Agent</text>
+  <text x="797" y="714" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">POST /v1/threads</text>
+  <text x="797" y="730" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">POST /v1/threads/{id}/turns</text>
+  <text x="797" y="746" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">GET  /v1/threads/{id}/events (SSE)</text>
+  <text x="797" y="762" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">item.delta -> fullText</text>
+  <text x="797" y="778" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#555">turn.completed</text>
+
+  <!-- Output note: right column -->
+  <text x="672" y="650" font-family="Arial, sans-serif" font-size="11" fill="#555">On complete:</text>
+  <text x="672" y="664" font-family="Arial, sans-serif" font-size="11" fill="#3fb950">dag.complete()  +  store.upsertTask()</text>
+  <text x="672" y="640" font-family="Arial, sans-serif" font-size="11" fill="#555">writeMemory(context)  +  insertDynamicTasks()</text>
+  <text x="672" y="626" font-family="Arial, sans-serif" font-size="11" fill="#555">lockRegistry.release()  +  markIdle()</text>
+
+  <!-- Annotations left side -->
+  <text x="60" y="370" font-family="Arial, sans-serif" font-size="11" fill="#888">repeats every</text>
+  <text x="60" y="384" font-family="Arial, sans-serif" font-size="11" fill="#888">500ms until</text>
+  <text x="60" y="398" font-family="Arial, sans-serif" font-size="11" fill="#888">all tasks done</text>
+  <line x1="155" y1="384" x2="318" y2="384" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arr)" />
+</svg>
