@@ -24,26 +24,32 @@
 
 ## 系统要求
 
-- **Bun** ≥ 1.3（[安装](https://bun.sh)）
 - **CodeWhale** CLI（`codewhale`）已安装并在 PATH 中（[安装](https://github.com/Hmbown/CodeWhale)）
-- **Git**（可选，启用分支隔离功能）
-- macOS / Linux（Windows 未测试）
+- macOS arm64 / x64（Homebrew 安装无需 Bun）
+- **Bun** ≥ 1.3 仅源码构建时需要（[安装](https://bun.sh)）
 
 ---
 
 ## 安装
 
-### Homebrew（推荐）
+### Homebrew（推荐，无需 Bun）
 
 ```bash
 brew tap DataSky/swarm-conductor https://github.com/DataSky/SwarmConductor
 brew install swarm-conductor
 ```
 
-安装完成后：
+安装后同时提供两个命令，功能完全相同：
 
 ```bash
+swarm demo          # 短别名
 swarm-conductor demo
+```
+
+升级：
+
+```bash
+brew upgrade swarm-conductor
 ```
 
 ### 从源码构建
@@ -52,8 +58,9 @@ swarm-conductor demo
 git clone https://github.com/DataSky/SwarmConductor.git
 cd SwarmConductor
 bun install
-bun run dev demo          # 直接运行
-# 或打包成本机可执行文件
+bun run dev demo          # 直接运行（需要 Bun）
+
+# 或编译成本机可执行文件
 bun build --compile src/cli/index.ts --outfile swarm-conductor
 ./swarm-conductor demo
 ```
@@ -62,10 +69,10 @@ bun build --compile src/cli/index.ts --outfile swarm-conductor
 
 ## 快速开始
 
-### 1. 验证架构（无需 CodeWhale）
+### 1. 验证安装
 
 ```bash
-bun run dev demo
+swarm demo
 ```
 
 输出示例：
@@ -78,11 +85,10 @@ Task DAG: 4 tasks  |  3 ready (parallel)  |  1 blocked
 Deadlock check: clean ✓
 ```
 
-### 2. 对真实项目运行（启动 live agents）
+### 2. 对真实项目运行
 
 ```bash
-# 用 5 个 agent 分析你的项目
-bun run dev run --project /path/to/your/project --agents 5 --auto-approve
+swarm run --project /path/to/your/project --agents 5 --auto-approve
 ```
 
 运行时显示实时 dashboard：
@@ -105,7 +111,7 @@ bun run bench
 ## CLI 参考
 
 ```
-bun run dev <command> [options]
+swarm <command> [options]
 ```
 
 | 命令 | 说明 |
@@ -143,13 +149,14 @@ swarm-conductor/
 │   │   ├── file-lock.ts  # 文件锁注册表
 │   │   └── git-manager.ts     # Git 分支管理
 │   ├── memory/           # 持久化层
-│   │   ├── store.ts      # SQLite ConductorStore
+│   │   ├── store.ts      # SQLite ConductorStore（bun:sqlite，WAL 模式）
 │   │   └── bus.ts        # 文件系统 SharedMemoryBus（备用）
-│   ├── cli/index.ts      # CLI 入口 + dashboard
+│   ├── cli/index.ts      # CLI 入口 + ANSI 实时 dashboard
 │   └── bench/run-benchmark.ts # 自分析压测脚本
 ├── tests/                # 59 个测试（unit + integration + e2e）
 ├── docs/                 # 详细文档
-└── .conductor/           # 运行时数据（conductor.db、内存条目）
+├── Formula/              # Homebrew Formula
+└── scripts/              # 构建与发布脚本
 ```
 
 ---
@@ -181,16 +188,29 @@ bun run build       # 打包到 dist/
 
 ## Benchmark 结果（2026-05-24）
 
-**自分析测试**（Swarm Conductor 分析自身代码）：
+**自分析测试**（Swarm Conductor 用 9 个 agent 分析自身代码）：
 
 | 指标 | 数值 |
 |------|------|
-| target | `codewhale_debug`（本项目，2457 行 TS） |
+| 目标项目 | `SwarmConductor`（本项目，2457 行 TS） |
 | agent 数量 | 9（5 explore + 3 review + 1 plan） |
-| 完成率 | 8/9（plan 任务超 900s 上限） |
-| 总耗时 | 900s（wall time） |
+| 完成率 | 8/9（plan 任务接近 900s 上限） |
+| 总耗时 | 900s |
 | 平均任务耗时 | 197s |
-| SQLite 写入 | 0.04ms / task（1000 次 upsert = 37ms） |
+| SQLite 写入性能 | 0.04ms / task（1000 次 upsert = 37ms） |
+
+自分析发现并修复了 6 个真实 bug，包括调度器双重派发竞态、SSE 断连默认成功、心跳互斥缺失等。
+
+---
+
+## 发布新版本
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+GitHub Actions 自动完成：编译 arm64 + x64 → 打包 → 更新 Formula sha256 → 发布 Release。
 
 ---
 

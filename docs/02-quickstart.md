@@ -1,11 +1,9 @@
 # 快速上手
 
-## 1. demo 模式（零依赖验证）
-
-不需要 CodeWhale 实例，只验证 DAG 架构是否正常：
+## 1. 验证安装
 
 ```bash
-bun run dev demo
+swarm demo
 ```
 
 输出：
@@ -25,16 +23,10 @@ M3 features available:
 
 ---
 
-## 2. run 模式（真实 agent）
-
-启动 live agent，显示实时 dashboard：
+## 2. 对真实项目运行
 
 ```bash
-# 分析当前目录，5 个 agent，自动批准所有 tool call
-bun run dev run --project . --agents 5 --auto-approve
-
-# 指定其他项目
-bun run dev run --project /path/to/your/repo --agents 3
+swarm run --project /path/to/your/project --agents 5 --auto-approve
 ```
 
 Dashboard 示意：

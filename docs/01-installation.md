@@ -44,16 +44,28 @@ codewhale login --provider deepseek
 ## 安装 Swarm Conductor
 
 ```bash
-git clone https://github.com/your-org/swarm-conductor.git
-cd swarm-conductor
-bun install
+brew tap DataSky/swarm-conductor https://github.com/DataSky/SwarmConductor
+brew install swarm-conductor
+```
+
+安装后同时提供两个命令，功能完全相同：
+
+```bash
+swarm demo            # 短别名（推荐）
+swarm-conductor demo  # 完整命令名
+```
+
+升级到新版本：
+
+```bash
+brew upgrade swarm-conductor
 ```
 
 验证安装：
 
 ```bash
-bun run dev demo
-# 应输出：Architecture verified. Milestone 1 complete.
+swarm demo
+# 应输出：Task DAG: 4 tasks ... Deadlock check: clean ✓
 ```
 
 ---
