@@ -202,10 +202,14 @@ export class Conductor {
       "\n\n---\nYour output MUST contain these 5 sections: ## SUMMARY, ## CHANGES, ## EVIDENCE, ## RISKS, ## BLOCKERS",
     ].join("")
 
+    // Mark busy synchronously before any await to prevent double-dispatch
+    // within the same scheduler tick.
+    this.agentMgr.markBusy(agentId, task.id, "pending")
+    this.dag.assign(task.id, agentId)
+
     try {
       const thread = await client.createThread()
       this.agentMgr.markBusy(agentId, task.id, thread.id)
-      this.dag.assign(task.id, agentId)
 
       const turn = await client.postTurn(thread.id, {
         prompt: fullPrompt,

@@ -130,7 +130,8 @@ export class CodeWhaleClient {
       const reader = r.body.getReader()
       const decoder = new TextDecoder()
       let buf = ""
-      let finalStatus: CWTurn["status"] = "completed"
+      // Default to "failed" so an unexpected stream close is never silently treated as success.
+      let finalStatus: CWTurn["status"] = "failed"
 
       outer: while (true) {
         const { done, value } = await reader.read()

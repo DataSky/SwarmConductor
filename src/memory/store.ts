@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS memory (
 );
 CREATE INDEX IF NOT EXISTS idx_memory_run_layer ON memory(run_id, layer);
 
+-- Tag lookup table: O(1) per tag instead of LIKE scan on JSON column
+CREATE TABLE IF NOT EXISTS memory_tags (
+  memory_id  TEXT NOT NULL,
+  run_id     TEXT NOT NULL,
+  layer      TEXT NOT NULL,
+  tag        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_tags_lookup ON memory_tags(run_id, layer, tag);
+
 CREATE TABLE IF NOT EXISTS event_log (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   run_id     TEXT NOT NULL,
@@ -79,7 +88,12 @@ export class ConductorStore {
   constructor(conductorDir: string, runId: string) {
     mkdirSync(conductorDir, { recursive: true })
     this.db = new Database(join(conductorDir, "conductor.db"))
-    this.db.exec("PRAGMA journal_mode=WAL;\nPRAGMA synchronous=NORMAL;\n" + SCHEMA)
+    this.db.exec(
+      "PRAGMA journal_mode=WAL;\n" +
+      "PRAGMA synchronous=NORMAL;\n" +
+      "PRAGMA busy_timeout=5000;\n" +   // wait up to 5s instead of failing immediately on lock
+      SCHEMA
+    )
     this.runId = runId
   }
 
@@ -168,16 +182,26 @@ export class ConductorStore {
     this.db.prepare(
       `INSERT INTO memory (id,run_id,layer,agent_id,task_id,content,tags,timestamp) VALUES (?,?,?,?,?,?,?,?)`
     ).run(id, this.runId, entry.layer, entry.agentId, entry.taskId, entry.content, JSON.stringify(entry.tags), timestamp)
+    // Populate the tag lookup table for O(1) indexed queries
+    for (const tag of entry.tags) {
+      this.db.prepare(
+        `INSERT INTO memory_tags (memory_id,run_id,layer,tag) VALUES (?,?,?,?)`
+      ).run(id, this.runId, entry.layer, tag)
+    }
     return { ...entry, id, timestamp }
   }
 
   readMemory(layer: MemoryLayerKind, tags?: string[]): MemoryEntry[] {
     let rows: Record<string,unknown>[]
     if (tags && tags.length > 0) {
-      const cond = tags.map(() => `tags LIKE ?`).join(" OR ")
+      // Use indexed join instead of LIKE on JSON column
+      const placeholders = tags.map(() => "?").join(",")
       rows = this.db.prepare(
-        `SELECT * FROM memory WHERE run_id=? AND layer=? AND (${cond}) ORDER BY timestamp ASC`
-      ).all(this.runId, layer, ...tags.map(t => `%"${t}"%`)) as Record<string,unknown>[]
+        `SELECT DISTINCT m.* FROM memory m
+         JOIN memory_tags t ON t.memory_id = m.id
+         WHERE m.run_id=? AND m.layer=? AND t.tag IN (${placeholders})
+         ORDER BY m.timestamp ASC`
+      ).all(this.runId, layer, ...tags) as Record<string,unknown>[]
     } else {
       rows = this.db.prepare(
         `SELECT * FROM memory WHERE run_id=? AND layer=? ORDER BY timestamp ASC`

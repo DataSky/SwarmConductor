@@ -62,9 +62,19 @@ export class GitWorkspaceManager {
       this.git("merge", "--no-ff", agentBranch, "-m", `merge: ${agentBranch}`)
       return { success: true, conflicts: [] }
     } catch {
-      const conflictOutput = this.git("diff", "--name-only", "--diff-filter=U")
-      const conflicts = conflictOutput.split("\n").filter(Boolean)
-      this.git("merge", "--abort")
+      // Collect conflicting files before aborting — both calls are best-effort
+      let conflicts: string[] = []
+      try {
+        const out = this.git("diff", "--name-only", "--diff-filter=U")
+        conflicts = out.split("\n").filter(Boolean)
+      } catch {
+        // diff failed (e.g. no merge in progress) — conflicts stays empty
+      }
+      try {
+        this.git("merge", "--abort")
+      } catch {
+        // abort failed — repo may already be clean
+      }
       return { success: false, conflicts }
     }
   }

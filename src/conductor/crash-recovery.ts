@@ -13,6 +13,7 @@ export class CrashRecovery {
   private lockRegistry: FileLockRegistry
   private restartCounts: Map<string, number> = new Map()
   private interval: ReturnType<typeof setInterval> | null = null
+  private checking = false  // mutex: prevent overlapping check() calls
   private onCrash: (agentId: string) => void = () => {}
   private onRestart: (agentId: string) => void = () => {}
 
@@ -44,6 +45,16 @@ export class CrashRecovery {
   }
 
   private async check(): Promise<void> {
+    if (this.checking) return
+    this.checking = true
+    try {
+      await this.doCheck()
+    } finally {
+      this.checking = false
+    }
+  }
+
+  private async doCheck(): Promise<void> {
     const now = Date.now()
     const busyAgents = Array.from(
       (this.agentMgr as unknown as { instances: Map<string, AgentInstance> }).instances.values()

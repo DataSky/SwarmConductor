@@ -78,6 +78,12 @@ export class TaskDAG {
       throw new Error(`Task ${node.id} already exists`)
     }
     this.graph.tasks.set(node.id, { ...node })
+    // Wire reverse edges for existing deps (mirrors addTasks behaviour)
+    for (const depId of node.dependsOn) {
+      const dep = this.graph.tasks.get(depId)
+      if (!dep) throw new Error(`Task ${node.id} depends on unknown task ${depId}`)
+      if (!dep.blocks.includes(node.id)) dep.blocks.push(node.id)
+    }
     this.recomputeStatus(node.id)
     this.touch()
   }
@@ -87,13 +93,12 @@ export class TaskDAG {
     for (const node of nodes) {
       this.graph.tasks.set(node.id, { ...node })
     }
-    // Wire reverse edges: for each task, add itself to dependents' `blocks`
+    // Wire reverse edges
     for (const node of nodes) {
       for (const depId of node.dependsOn) {
         const dep = this.graph.tasks.get(depId)
-        if (dep && !dep.blocks.includes(node.id)) {
-          dep.blocks.push(node.id)
-        }
+        if (!dep) throw new Error(`Task ${node.id} depends on unknown task ${depId}`)
+        if (!dep.blocks.includes(node.id)) dep.blocks.push(node.id)
       }
     }
     for (const node of nodes) {
