@@ -30,8 +30,8 @@ export class AgentProcessManager {
       lastHeartbeat: Date.now(),
     }
 
-    // codewhale serve passes args through to codewhale-tui serve
-    // --insecure disables auth requirement (safe for localhost-only conductor use)
+    // Pass only the env vars codewhale actually needs.
+    // Never forward arbitrary secrets from the parent environment.
     const proc = spawn({
       cmd: [
         this.config.codewhalebin,
@@ -43,7 +43,7 @@ export class AgentProcessManager {
       cwd: this.config.projectPath,
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env },
+      env: this.safeEnv(),
     })
 
     instance.pid = proc.pid
@@ -137,7 +137,7 @@ export class AgentProcessManager {
       cwd: this.config.projectPath,
       stdout: "pipe",
       stderr: "pipe",
-      env: { ...process.env },
+      env: this.safeEnv(),
     })
 
     inst.pid = proc.pid
@@ -162,8 +162,7 @@ export class AgentProcessManager {
 
   stats() {
     const all = Array.from(this.instances.values())
-    return {
-      total: all.length,
+    return {      total: all.length,
       idle: all.filter(i => i.status === "idle").length,
       busy: all.filter(i => i.status === "busy").length,
       crashed: all.filter(i => i.status === "crashed").length,
@@ -174,5 +173,15 @@ export class AgentProcessManager {
     const inst = this.instances.get(id)
     if (!inst) throw new Error(`Agent instance ${id} not found`)
     return inst
+  }
+
+  // Only forward env vars codewhale actually needs — never leak arbitrary secrets.
+  private safeEnv(): Record<string, string> {
+    const allowed = ["DEEPSEEK_", "OPENAI_", "ANTHROPIC_", "HOME", "PATH", "USER", "SHELL", "TERM", "LANG", "LC_", "XDG_"]
+    const env: Record<string, string> = {}
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v && allowed.some(p => k.startsWith(p))) env[k] = v
+    }
+    return env
   }
 }
