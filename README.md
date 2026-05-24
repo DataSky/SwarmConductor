@@ -88,7 +88,10 @@ Deadlock check: clean ✓
 ### 2. 对真实项目运行
 
 ```bash
-swarm run --project /path/to/your/project --agents 5 --auto-approve
+swarm run --goal "分析项目结构，找出主要模块和潜在问题" \
+          --project /path/to/your/project \
+          --agents 5 \
+          --auto-approve
 ```
 
 运行时显示实时 dashboard：
