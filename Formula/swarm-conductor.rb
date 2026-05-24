@@ -24,11 +24,7 @@ class SwarmConductor < Formula
   end
 
   def install
-    if Hardware::CPU.arm?
-      bin.install "swarm-conductor-darwin-arm64" => "swarm-conductor"
-    else
-      bin.install "swarm-conductor-darwin-x64" => "swarm-conductor"
-    end
+    bin.install "swarm-conductor"
   end
 
   def caveats
