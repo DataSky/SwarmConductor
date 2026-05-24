@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: macos-14           # Apple Silicon runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run tests
+        run: bun test tests/dag.test.ts tests/m3-unit.test.ts tests/store.test.ts tests/git-workspace.test.ts
+
+      - name: Build arm64
+        run: |
+          bun build --compile --target=bun-darwin-arm64 --minify \
+            src/cli/index.ts \
+            --outfile dist/swarm-conductor-darwin-arm64
+
+      - name: Build x64
+        run: |
+          bun build --compile --target=bun-darwin-x64 --minify \
+            src/cli/index.ts \
+            --outfile dist/swarm-conductor-darwin-x64
+
+      - name: Package tarballs
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/release
+
+          for ARCH in darwin-arm64 darwin-x64; do
+            tar -czf "dist/release/swarm-conductor-${VERSION}-${ARCH}.tar.gz" \
+              -C dist "swarm-conductor-${ARCH}" \
+              README.md
+          done
+
+          cd dist/release
+          shasum -a 256 *.tar.gz | tee sha256sums.txt
+
+      - name: Update Formula sha256
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARM64_SHA=$(grep "darwin-arm64" dist/release/sha256sums.txt | awk '{print $1}')
+          X64_SHA=$(grep  "darwin-x64"   dist/release/sha256sums.txt | awk '{print $1}')
+          chmod +x scripts/update-formula.sh
+          ./scripts/update-formula.sh "$VERSION" "$ARM64_SHA" "$X64_SHA"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/swarm-conductor.rb
+          git commit -m "chore: update Formula sha256 for v${VERSION}" || true
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/*.tar.gz
+            dist/release/sha256sums.txt
+          generate_release_notes: true

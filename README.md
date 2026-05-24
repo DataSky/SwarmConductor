@@ -33,10 +33,29 @@
 
 ## 安装
 
+### Homebrew（推荐）
+
 ```bash
-git clone https://github.com/your-org/swarm-conductor.git
-cd swarm-conductor
+brew tap DataSky/swarm-conductor https://github.com/DataSky/SwarmConductor
+brew install swarm-conductor
+```
+
+安装完成后：
+
+```bash
+swarm-conductor demo
+```
+
+### 从源码构建
+
+```bash
+git clone https://github.com/DataSky/SwarmConductor.git
+cd SwarmConductor
 bun install
+bun run dev demo          # 直接运行
+# 或打包成本机可执行文件
+bun build --compile src/cli/index.ts --outfile swarm-conductor
+./swarm-conductor demo
 ```
 
 ---
