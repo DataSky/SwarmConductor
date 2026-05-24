@@ -38,7 +38,7 @@ function bar(done: number, total: number, width = 28): string {
 function renderDashboard(conductor: Conductor, eventLog: string[]): void {
   const s = conductor.status()
   const tasks = conductor.taskDag.allTasks()
-  const now = new Date().toISOString().slice(11, 19)
+  const now = new Date().toLocaleTimeString("en-GB", { hour12: false })
 
   process.stdout.write("\x1b[2J\x1b[H")
   console.log(`${C.bold}╔══════════════════════════════════════════════════╗${C.reset}`)
@@ -305,7 +305,7 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   // ── Dashboard render loop ──────────────────────────────────────────────────
   const eventLog: string[] = []
   conductor.onEvent((e: ConductorEvent) => {
-    const ts = new Date(e.timestamp).toISOString().slice(11, 19)
+    const ts = new Date(e.timestamp).toLocaleTimeString("en-GB", { hour12: false })
     const detail = e.payload["taskId"] ? ` task:${String(e.payload["taskId"]).slice(0, 8)}` : ""
     eventLog.push(`[${ts}] ${e.kind}${detail}`)
   })
