@@ -87,6 +87,8 @@ Deadlock check: clean ✓
 
 ### 2. 对真实项目运行
 
+#### 方式一：自然语言目标（最简单）
+
 ```bash
 swarm run --goal "分析项目结构，找出主要模块和潜在问题" \
           --project /path/to/your/project \
@@ -94,11 +96,51 @@ swarm run --goal "分析项目结构，找出主要模块和潜在问题" \
           --auto-approve
 ```
 
+#### 方式二：YAML 任务文件（精确控制）
+
+```bash
+swarm run --tasks example-tasks.yaml --auto-approve
+```
+
+仓库根目录提供了一份开箱即用的示例文件 [`example-tasks.yaml`](./example-tasks.yaml)，也可以参考它的结构自定义：
+
+```yaml
+# example-tasks.yaml
+goal: "分析并优化项目代码质量"
+agents: 3
+
+phases:
+  - name: explore           # Phase 0：并行探索（3 个 agent 同时跑）
+    tasks:
+      - title: "分析项目结构"
+        type: explore
+        scope: ["src"]
+        prompt: "分析 src 目录的文件结构、模块划分和主要依赖关系，列出关键文件"
+
+      - title: "检查测试覆盖"
+        type: explore
+        scope: ["tests"]
+        prompt: "检查测试文件，找出哪些模块缺少测试覆盖"
+
+      - title: "识别代码问题"
+        type: explore
+        scope: ["src"]
+        prompt: "查找潜在的 bug、重复代码、不一致的错误处理模式"
+
+  - name: plan              # Phase 1：汇总制定计划（等 explore 全部完成）
+    tasks:
+      - title: "制定优化方案"
+        type: plan
+        depends_on_phase: explore
+        prompt: "根据探索阶段的发现，制定代码质量优化的优先级列表和实施步骤"
+```
+
 运行时显示实时 dashboard：
 ```
-Phase 1  [████████████████░░░░░░░░░░░░]  8/9 (88%)
-  running:3  ready:0  blocked:1  failed:0
-Agents  idle:2  busy:3  crashed:0  locks:3
+Phase 0  [████████████████░░░░░░░░░░░░]  2/3 (67%)
+  running:1  ready:0  blocked:1  failed:0
+Agents  idle:2  busy:1  crashed:0  locks:1
+Tokens  in:32,826  out:156  total:32,982  cache:78%
 ```
 
 ### 3. 自分析 benchmark
@@ -124,9 +166,13 @@ swarm <command> [options]
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
+| `--goal <text>` | — | 自然语言描述任务目标（与 `--tasks` 二选一，必填） |
+| `--tasks <path>` | — | YAML 任务文件路径（与 `--goal` 二选一，必填） |
 | `--project <path>` | `cwd` | 目标项目目录 |
-| `--agents <n>` | `10` | 最大并发 agent 数量（上限 20） |
+| `--agents <n>` | `5` | 最大并发 agent 数量（上限 20） |
 | `--auto-approve` | `false` | 自动批准所有 tool call（跳过人工审批） |
+| `--no-interact` | `false` | 全自动模式，任务完成后不暂停等待输入 |
+| `--output <path>` | `.conductor/report-<id>.json` | JSON 报告保存路径 |
 | `--dynamic-tasks false` | `true` | 关闭动态任务生成 |
 | `--bin <path>` | `codewhale` | CodeWhale 二进制路径 |
 

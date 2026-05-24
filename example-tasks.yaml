@@ -1,25 +1,63 @@
-goal: "重构 auth 模块，把 JWT 换成 session"
+# example-tasks.yaml
+#
+# 开箱即用的示例任务文件，直接对你的项目运行：
+#   swarm run --tasks example-tasks.yaml --project /path/to/your/project --auto-approve
+#
+# 字段说明：
+#   goal          整体目标描述（可选，用于 agent 上下文）
+#   agents        最大并发 agent 数（可被 --agents 覆盖）
+#   phases        执行阶段列表，按顺序定义
+#   depends_on_phase  等待指定 phase 的所有任务完成后才开始
+#   depends_on    等待指定 title 的任务完成后才开始
+#   scope         任务涉及的目录或文件（用于文件锁冲突检测）
+#   type          explore | plan | implement | review | verify
+
+goal: "分析项目代码质量，制定改进方案"
 agents: 3
 
 phases:
+  # ── Phase 0: 并行探索，3 个 agent 同时运行 ───────────────────────────────
   - name: explore
     tasks:
-      - title: "分析 auth 模块现状"
+      - title: "分析项目结构"
         type: explore
-        scope: ["src/conductor"]
-        prompt: "分析这个模块的结构，找出主要接口和依赖"
+        scope: ["src"]
+        prompt: |
+          分析项目的文件结构和模块划分：
+          1. 列出主要目录和关键文件
+          2. 描述各模块的职责
+          3. 找出模块间的依赖关系
+          4. 识别架构层次（入口、核心逻辑、工具层等）
 
-      - title: "分析测试覆盖情况"
+      - title: "检查测试覆盖"
         type: explore
-        scope: ["tests"]
+        scope: ["tests", "test", "__tests__"]
+        prompt: |
+          检查项目的测试情况：
+          1. 列出现有测试文件
+          2. 找出哪些核心模块缺少测试
+          3. 评估测试质量（单元测试 vs 集成测试）
+          4. 列出最需要补充测试的高风险代码路径
 
-  - name: implement
+      - title: "识别代码问题"
+        type: explore
+        scope: ["src"]
+        prompt: |
+          从代码质量角度扫描项目：
+          1. 找出潜在的 bug（空指针、竞态条件、未处理的错误）
+          2. 识别重复代码和可复用的抽象
+          3. 检查错误处理是否一致
+          4. 找出硬编码的值和缺少文档的公共接口
+
+  # ── Phase 1: 综合制定方案（等 explore 全部完成）─────────────────────────
+  - name: plan
     tasks:
-      - title: "制定重构计划"
+      - title: "制定改进方案"
         type: plan
         depends_on_phase: explore
-
-      - title: "执行重构"
-        type: implement
-        scope: ["src/conductor"]
-        depends_on: ["制定重构计划"]
+        prompt: |
+          基于探索阶段的发现，制定代码质量改进方案：
+          1. 按优先级列出需要修复的问题（P0/P1/P2）
+          2. 建议补充测试的顺序
+          3. 识别可以安全重构的代码
+          4. 给出本次改进的建议实施顺序和预估工作量
