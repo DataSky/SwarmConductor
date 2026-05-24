@@ -34,10 +34,24 @@ class SwarmConductor < Formula
         npm install -g codewhale
 
       Quick start:
-        swarm-conductor demo
-        swarm-conductor run --project /path/to/your/project --agents 5 --auto-approve
+        swarm run --goal "分析项目结构" --project /path/to/your/project --auto-approve
+        swarm run --tasks example-tasks.yaml --auto-approve
+        swarm demo
 
       Full docs: https://github.com/DataSky/SwarmConductor/tree/main/docs
+
+      ── macOS Security Notice ──────────────────────────────────────────
+      This binary is not yet signed with an Apple Developer certificate.
+      If macOS blocks it on first launch, run ONE of the following:
+
+        Option 1 (GUI):
+          System Settings -> Privacy & Security -> Allow Anyway
+
+        Option 2 (terminal):
+          xattr -d com.apple.quarantine $(which swarm)
+
+      This only needs to be done once.
+      ──────────────────────────────────────────────────────────────────
     EOS
   end
 
