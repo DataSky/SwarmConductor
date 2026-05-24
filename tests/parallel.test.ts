@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test"
 import { AgentProcessManager } from "../src/runtime/agent-manager"
 import { FileLockRegistry } from "../src/workspace/file-lock"
-import { SharedMemoryBus } from "../src/memory/bus"
+import { ConductorStore } from "../src/memory/store"
 import { defaultConfig } from "../src/dag/types"
 import { mkdirSync, rmSync } from "fs"
 import { join } from "path"
@@ -105,13 +105,14 @@ describe("FileLock + parallel conflict prevention", () => {
   })
 })
 
-describe("SharedMemoryBus cross-agent", () => {
+describe("ConductorStore cross-agent (replaces SharedMemoryBus)", () => {
   it("agent-1 writes context, agent-2 reads it", () => {
-    const memDir = join(TMP_DIR, ".conductor-mem-test")
-    mkdirSync(memDir, { recursive: true })
-    const bus = new SharedMemoryBus(memDir)
+    const storeDir = join(TMP_DIR, ".store-test-1")
+    mkdirSync(storeDir, { recursive: true })
+    const store = new ConductorStore(storeDir, "run-test")
+    store.initRun(storeDir)
 
-    bus.write({
+    store.writeMemory({
       layer: "context",
       agentId: "agent-1",
       taskId: "task-explore",
@@ -119,23 +120,26 @@ describe("SharedMemoryBus cross-agent", () => {
       tags: ["src/index.ts", "structure"],
     })
 
-    const entries = bus.getContext(["src/index.ts"])
+    const entries = store.getContext(["src/index.ts"])
     expect(entries.length).toBeGreaterThanOrEqual(1)
     expect(entries[0]!.content).toContain("src/index.ts")
     expect(entries[0]!.agentId).toBe("agent-1")
+    store.close()
   })
 
   it("event log is append-only and readable", () => {
-    const memDir = join(TMP_DIR, ".conductor-mem-test2")
-    mkdirSync(memDir, { recursive: true })
-    const bus = new SharedMemoryBus(memDir)
+    const storeDir = join(TMP_DIR, ".store-test-2")
+    mkdirSync(storeDir, { recursive: true })
+    const store = new ConductorStore(storeDir, "run-test2")
+    store.initRun(storeDir)
 
-    bus.write({ layer: "event_log", agentId: "a1", taskId: "t1", content: '{"event":"task.completed"}', tags: ["event"] })
-    bus.write({ layer: "event_log", agentId: "a2", taskId: "t2", content: '{"event":"task.failed"}', tags: ["event", "error"] })
+    store.logEvent("a1", "t1", "task.completed", { title: "T1" })
+    store.logEvent("a2", "t2", "task.failed", { title: "T2" })
 
-    const events = bus.getRecentEvents(10)
+    const events = store.getRecentEvents(10)
     expect(events.length).toBe(2)
     expect(events[0]!.agentId).toBe("a1")
     expect(events[1]!.agentId).toBe("a2")
+    store.close()
   })
 })

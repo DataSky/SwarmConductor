@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-05-24T08:28:22.510Z",
+  "target": "/Users/wangteng06/AiCode/oh-my-opencode",
+  "agentCount": 10,
+  "result": "completed",
+  "totalWallMs": 183304,
+  "spawnMs": 2020,
+  "tasks": {
+    "total": 10,
+    "done": 10,
+    "failed": 0
+  },
+  "taskTimings": {
+    "avg": 157547.8,
+    "min": 103387,
+    "max": 182647
+  },
+  "runId": "run-1779611117134-zbpg9"
+}
