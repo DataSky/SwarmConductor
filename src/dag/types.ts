@@ -47,6 +47,7 @@ export interface TaskNode {
   retryCount: number
   maxRetries: number
   forkContext: boolean       // inherit parent agent context
+  tokenUsage: { inputTokens: number; outputTokens: number; cacheHitTokens: number; cacheMissTokens: number } | null
 }
 
 // Required output contract (mirrors CodeWhale SUBAGENTS.md)

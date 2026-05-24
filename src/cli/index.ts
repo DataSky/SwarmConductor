@@ -53,6 +53,15 @@ function renderDashboard(conductor: Conductor, eventLog: string[]): void {
   console.log(`  ${C.cyan}running:${s.tasks.running}${C.reset}  ${C.blue}ready:${s.tasks.ready}${C.reset}  ${C.dim}blocked:${s.tasks.blocked}${C.reset}  ${C.red}failed:${s.tasks.failed}${C.reset}`)
   console.log()
   console.log(`  ${C.bold}Agents${C.reset}  idle:${C.green}${s.agents.idle}${C.reset}  busy:${C.cyan}${s.agents.busy}${C.reset}  crashed:${C.red}${s.agents.crashed}${C.reset}  locks:${s.locks}`)
+
+  // Live token counter
+  try {
+    const tok = conductor.store.tokenStats()
+    if (tok.totalTokens > 0) {
+      const hitBadge = tok.cacheHitRate > 0 ? ` ${C.green}cache:${tok.cacheHitRate}%${C.reset}` : ""
+      console.log(`  ${C.bold}Tokens${C.reset}  in:${C.yellow}${tok.inputTokens.toLocaleString()}${C.reset}  out:${C.cyan}${tok.outputTokens.toLocaleString()}${C.reset}  total:${C.bold}${tok.totalTokens.toLocaleString()}${C.reset}${hitBadge}`)
+    }
+  } catch { /* db may not be ready */ }
   if (s.pendingApprovals > 0) {
     console.log(`  ${C.yellow}${C.bold}⏸  ${s.pendingApprovals} approval(s) pending${C.reset}`)
   }
@@ -97,6 +106,32 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
     const avg = Math.round(timings.reduce((a, b) => a + b, 0) / timings.length / 1000)
     console.log(`  Timing  avg ${avg}s  wall ${Math.round(wallMs / 1000)}s`)
   }
+
+  // Token usage breakdown
+  try {
+    const tok = conductor.store.tokenStats()
+    if (tok.totalTokens > 0) {
+      console.log()
+      console.log(`${C.bold}  Token Usage${C.reset}`)
+      console.log(`  ${"─".repeat(60)}`)
+      console.log(`  Total      ${C.bold}${tok.totalTokens.toLocaleString()}${C.reset} tokens`)
+      console.log(`  Input      ${tok.inputTokens.toLocaleString()}  (${C.yellow}cache hit: ${tok.cacheHitTokens.toLocaleString()}${C.reset}  miss: ${tok.cacheMissTokens.toLocaleString()})`)
+      console.log(`  Output     ${tok.outputTokens.toLocaleString()}`)
+      console.log(`  Cache rate ${C.green}${tok.cacheHitRate}%${C.reset}  ${tok.cacheHitRate >= 50 ? "(good)" : tok.cacheHitRate > 0 ? "(low — consider fork_context)" : "(no cache)"}`)
+      // Per-task breakdown
+      const withUsage = done.filter(t => t.tokenUsage)
+      if (withUsage.length > 0) {
+        console.log()
+        console.log(`  ${C.dim}${"Task".padEnd(38)} ${"Input".padStart(8)} ${"Output".padStart(7)} ${"CacheHit%".padStart(10)}${C.reset}`)
+        for (const t of withUsage) {
+          const u = t.tokenUsage!
+          const hitPct = u.inputTokens > 0 ? Math.round(u.cacheHitTokens / u.inputTokens * 100) : 0
+          const hitColor = hitPct >= 50 ? C.green : hitPct > 0 ? C.yellow : C.red
+          console.log(`  ${t.title.slice(0, 38).padEnd(38)} ${u.inputTokens.toLocaleString().padStart(8)} ${u.outputTokens.toLocaleString().padStart(7)} ${hitColor}${String(hitPct + "%").padStart(10)}${C.reset}`)
+        }
+      }
+    }
+  } catch { /* db closed or no data */ }
   console.log(`  Run ID  ${C.dim}${conductor.runId}${C.reset}`)
   console.log()
 
@@ -144,8 +179,10 @@ function printFinalReport(conductor: Conductor, wallMs: number, outputPath: stri
       blockers: t.output?.blockers ?? [],
       changes: t.output?.changes ?? [],
       durationMs: (t.startedAt && t.completedAt) ? t.completedAt - t.startedAt : null,
+      tokenUsage: t.tokenUsage ?? null,
     })),
     errors: failed.map(t => ({ id: t.id, title: t.title, error: t.error })),
+    tokenTotals: (() => { try { return conductor.store.tokenStats() } catch { return null } })(),
   }
   writeFileSync(dest, JSON.stringify(report, null, 2))
   console.log(`  ${C.dim}Full output  → .conductor/conductor.db${C.reset}`)

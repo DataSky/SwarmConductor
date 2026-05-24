@@ -220,7 +220,7 @@ export class Conductor {
         fork_context: task.forkContext,
       })
 
-      const { fullText, status } = await client.waitForTurn(
+      const { fullText, status, usage } = await client.waitForTurn(
         thread.id, turn.id, undefined, this.config.fileLockTtlMs,
       )
 
@@ -230,6 +230,8 @@ export class Conductor {
       }
 
       const output = parseTaskOutput(fullText)
+      // Attach token usage to the task before completing
+      task.tokenUsage = usage
       this.dag.complete(task.id, output)
 
       this.store.writeMemory({

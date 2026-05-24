@@ -42,6 +42,7 @@ export function createTaskNode(
     retryCount: 0,
     maxRetries: partial.maxRetries ?? 2,
     forkContext: partial.forkContext ?? false,
+    tokenUsage: null,
     ...partial,
   }
 }

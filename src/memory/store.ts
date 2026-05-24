@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   retry_count   INTEGER NOT NULL DEFAULT 0,
   max_retries   INTEGER NOT NULL DEFAULT 2,
   fork_context  INTEGER NOT NULL DEFAULT 0,
+  token_usage   TEXT,            -- JSON {inputTokens,outputTokens,cacheHitTokens,cacheMissTokens}
   created_at    INTEGER NOT NULL,
   started_at    INTEGER,
   completed_at  INTEGER
@@ -135,8 +136,8 @@ export class ConductorStore {
       `INSERT OR REPLACE INTO tasks
        (id,run_id,type,title,status,priority,role,prompt,scope,depends_on,
         assigned_to,output,error,retry_count,max_retries,fork_context,
-        created_at,started_at,completed_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        token_usage,created_at,started_at,completed_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       task.id, this.runId, task.type, task.title, task.status,
       task.priority, task.role, task.prompt,
@@ -145,6 +146,7 @@ export class ConductorStore {
       task.output ? JSON.stringify(task.output) : null,
       task.error ?? null,
       task.retryCount, task.maxRetries, task.forkContext ? 1 : 0,
+      task.tokenUsage ? JSON.stringify(task.tokenUsage) : null,
       task.createdAt, task.startedAt ?? null, task.completedAt ?? null,
     )
   }
@@ -168,6 +170,7 @@ export class ConductorStore {
         retryCount: r["retry_count"] as number,
         maxRetries: r["max_retries"] as number,
         forkContext: (r["fork_context"] as number) === 1,
+        tokenUsage: r["token_usage"] ? JSON.parse(r["token_usage"] as string) : null,
         createdAt: r["created_at"] as number,
         startedAt: r["started_at"] as number | null,
         completedAt: r["completed_at"] as number | null,
@@ -265,6 +268,30 @@ export class ConductorStore {
     ).get(this.runId) as {avg_ms:number|null}
 
     return { ...s, avgDurationMs: d.avg_ms ?? 0 }
+  }
+
+  tokenStats(): { inputTokens:number, outputTokens:number, cacheHitTokens:number, cacheMissTokens:number, totalTokens:number, cacheHitRate:number } {
+    const rows = (this.db.prepare(
+      `SELECT token_usage FROM tasks WHERE run_id=? AND token_usage IS NOT NULL`
+    ).all(this.runId) as { token_usage: string }[])
+
+    let input = 0, output = 0, hit = 0, miss = 0
+    for (const r of rows) {
+      const u = JSON.parse(r.token_usage) as { inputTokens:number, outputTokens:number, cacheHitTokens:number, cacheMissTokens:number }
+      input  += u.inputTokens  ?? 0
+      output += u.outputTokens ?? 0
+      hit    += u.cacheHitTokens  ?? 0
+      miss   += u.cacheMissTokens ?? 0
+    }
+    const total = input + output
+    return {
+      inputTokens:  input,
+      outputTokens: output,
+      cacheHitTokens:  hit,
+      cacheMissTokens: miss,
+      totalTokens: total,
+      cacheHitRate: (input > 0) ? Math.round((hit / input) * 100) : 0,
+    }
   }
 
   private closed = false

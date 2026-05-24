@@ -2,6 +2,13 @@
 // SSE events endpoint: GET /v1/threads/{id}/events?since_seq=N
 // Returns Server-Sent Events stream: "event: xxx\ndata: {...}\n\n"
 
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheHitTokens: number
+  cacheMissTokens: number
+}
+
 export interface CWThread {
   id: string
   created_at: string
@@ -111,7 +118,7 @@ export class CodeWhaleClient {
     _turnId: string,
     onDelta?: (text: string) => void,
     timeoutMs = 1_800_000
-  ): Promise<{ status: CWTurn["status"]; fullText: string }> {
+  ): Promise<{ status: CWTurn["status"]; fullText: string; usage: TokenUsage }> {
     const url = `${this.base}/v1/threads/${threadId}/events?since_seq=0`
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -132,6 +139,7 @@ export class CodeWhaleClient {
       let buf = ""
       // Default to "failed" so an unexpected stream close is never silently treated as success.
       let finalStatus: CWTurn["status"] = "failed"
+      let usage: TokenUsage = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 }
 
       outer: while (true) {
         const { done, value } = await reader.read()
@@ -158,9 +166,17 @@ export class CodeWhaleClient {
               }
 
               if (terminalEvents.has(ev.event)) {
-                // Extract turn status from payload
-                const turnPayload = ev.payload as { turn?: { status?: string } }
+                const turnPayload = ev.payload as { turn?: { status?: string; usage?: Record<string, number> } }
                 finalStatus = (turnPayload.turn?.status as CWTurn["status"]) ?? "completed"
+                const u = turnPayload.turn?.usage
+                if (u) {
+                  usage = {
+                    inputTokens:    u["input_tokens"]             ?? 0,
+                    outputTokens:   u["output_tokens"]            ?? 0,
+                    cacheHitTokens: u["prompt_cache_hit_tokens"]  ?? 0,
+                    cacheMissTokens:u["prompt_cache_miss_tokens"] ?? 0,
+                  }
+                }
                 break outer
               }
             } catch {
@@ -174,7 +190,7 @@ export class CodeWhaleClient {
         }
       }
 
-      return { status: finalStatus, fullText }
+      return { status: finalStatus, fullText, usage }
     } finally {
       clearTimeout(timer)
     }
