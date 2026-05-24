@@ -25,6 +25,7 @@ class SwarmConductor < Formula
 
   def install
     bin.install "swarm-conductor"
+    bin.install_symlink "swarm-conductor" => "swarm"
   end
 
   def caveats
