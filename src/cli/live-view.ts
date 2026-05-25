@@ -8,21 +8,23 @@ const C = {
   reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m",
   green: "\x1b[32m", yellow: "\x1b[33m", red: "\x1b[31m",
   cyan: "\x1b[36m", blue: "\x1b[34m", magenta: "\x1b[35m",
-  gray: "\x1b[90m", white: "\x1b[97m", bgDark: "\x1b[48;5;235m",
+  gray: "\x1b[90m", bgDark: "\x1b[48;5;235m",
 }
 
-const statusIcon: Record<string, string> = {
+const STATUS_ICON: Record<string, string> = {
   done:        `${C.green}✓${C.reset}`,
   running:     `${C.cyan}⟳${C.reset}`,
   ready:       `${C.blue}○${C.reset}`,
-  blocked:     `${C.dim}…${C.reset}`,
+  blocked:     `${C.dim}·${C.reset}`,
   failed:      `${C.red}✗${C.reset}`,
   interrupted: `${C.yellow}!${C.reset}`,
   pending:     `${C.dim}·${C.reset}`,
 }
 
-function bar(done: number, total: number, width = 24): string {
-  if (total === 0) return " ".repeat(width)
+export type VerboseLevel = "quiet" | "summary" | "stream"
+
+function bar(done: number, total: number, width = 20): string {
+  if (total === 0) return `${C.dim}${"░".repeat(width)}${C.reset}`
   const filled = Math.round((done / total) * width)
   return `${C.green}${"█".repeat(filled)}${C.reset}${C.dim}${"░".repeat(width - filled)}${C.reset}`
 }
@@ -32,374 +34,391 @@ function elapsed(ms: number): string {
   return `${Math.floor(ms / 60_000)}m${Math.round((ms % 60_000) / 1000)}s`
 }
 
-// ─── Layout constants ─────────────────────────────────────────────────────────
+function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[^m]*m/g, "")
+}
 
-const HEADER_ROWS   = 3   // header + blank
-const FOOTER_ROWS   = 1
-const LEFT_WIDTH    = 38  // task list column width
-const MIN_SCROLL_H  = 8   // minimum scroll area height
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
+const HEADER_ROWS = 2
+const FOOTER_ROWS = 2
+const LEFT_W      = 36
+const MIN_LOG_H   = 6
 
 // ─── AgentSlot ────────────────────────────────────────────────────────────────
-// Tracks the running state for one agent in the right panel.
 
 interface AgentSlot {
-  agentId: string
-  taskId: string
-  title: string
-  role: string
+  taskId:    string
+  title:     string
+  type:      string
   startedAt: number
-  buffer: string      // accumulated token stream (last N chars)
-  lineCount: number   // how many lines this slot has printed
+  lastLine:  string    // last token line seen (shown in left panel while running)
 }
 
 // ─── LiveView ─────────────────────────────────────────────────────────────────
 
 export class LiveView {
   private conductor: Conductor
-  private slots = new Map<string, AgentSlot>()
-  private scrollLines: string[] = []
-  private maxScrollLines = 400
-  private termWidth  = process.stdout.columns || 120
-  private termHeight = process.stdout.rows    || 30
-  private leftWidth  = Math.min(LEFT_WIDTH, Math.floor((process.stdout.columns || 120) * 0.35))
-  private rightWidth = (process.stdout.columns || 120) - Math.min(LEFT_WIDTH, Math.floor((process.stdout.columns || 120) * 0.35)) - 3
-  private tickInterval: ReturnType<typeof setInterval> | null = null
-  private rl: ReturnType<typeof createInterface> | null = null
+  private verbose: VerboseLevel
+  private slots   = new Map<string, AgentSlot>()  // agentId → slot
+  private log:    string[] = []                   // right-panel event log
+  private maxLog  = 500
+  private tokBuf  = new Map<string, string>()     // agentId → unfinished line buffer
+  private tw = process.stdout.columns || 120
+  private th = process.stdout.rows    || 30
+  private lw = Math.min(LEFT_W, Math.floor((process.stdout.columns || 120) * 0.32))
+  private get rw() { return this.tw - this.lw - 2 }
+  private tick: ReturnType<typeof setInterval> | null = null
+  private rl:   ReturnType<typeof createInterface> | null = null
 
-  constructor(conductor: Conductor) {
+  constructor(conductor: Conductor, verbose: VerboseLevel = "summary") {
     this.conductor = conductor
+    this.verbose   = verbose
   }
 
-  // ── Public API ──────────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   start(): void {
-    // Resize handler
     process.stdout.on("resize", () => {
-      this.termWidth  = process.stdout.columns || 120
-      this.termHeight = process.stdout.rows    || 30
-      this.leftWidth  = Math.min(LEFT_WIDTH, Math.floor(this.termWidth * 0.35))
-      this.rightWidth = this.termWidth - this.leftWidth - 3
+      this.tw = process.stdout.columns || 120
+      this.th = process.stdout.rows    || 30
+      this.lw = Math.min(LEFT_W, Math.floor(this.tw * 0.32))
       this.fullRedraw()
     })
 
-    // Subscribe to token stream
     this.conductor.onStream((agentId, task, delta) => {
       this.handleDelta(agentId, task, delta)
     })
 
-    // Subscribe to conductor events for slot lifecycle
-    this.conductor.onEvent(e => {
-      if (e.kind === "task.status_changed") {
-        const taskId = e.payload["taskId"] as string
-        const next   = e.payload["next"]   as string
-        const task   = this.conductor.taskDag.getTask(taskId)
-        if (!task) return
+    this.conductor.onEvent(e => this.handleEvent(e.kind, e.payload))
 
-        if (next === "running") {
-          // Open a new slot for this task
-          const agentId = task.assignedTo ?? taskId
-          this.slots.set(agentId, {
-            agentId, taskId,
-            title: task.title,
-            role: task.type,
-            startedAt: Date.now(),
-            buffer: "",
-            lineCount: 0,
-          })
-          this.appendScroll(`${C.bold}${C.cyan}▶ [${task.type}] ${task.title}${C.reset}`)
-
-        } else if (next === "done" || next === "failed" || next === "interrupted") {
-          const agentId = [...this.slots.entries()]
-            .find(([, s]) => s.taskId === taskId)?.[0]
-          if (agentId) {
-            const slot = this.slots.get(agentId)!
-            const dur = elapsed(Date.now() - slot.startedAt)
-            const tok = task.tokenUsage
-            const tokStr = tok ? ` · ${C.yellow}${tok.inputTokens.toLocaleString()} tok${C.reset}` : ""
-            const icon = next === "done" ? `${C.green}✓` : `${C.red}✗`
-            this.appendScroll(`${icon} [${task.type}] ${task.title}${C.reset}  ${C.dim}${dur}${tokStr}${C.reset}`)
-
-            if (next === "done" && task.output?.summary) {
-              this.appendTaskSummary(task)
-            }
-            this.slots.delete(agentId)
-          }
-
-        } else if (next === "blocked") {
-          // no visual noise for normal blocked transitions
-        }
-      }
-
-      if (e.kind === "phase.completed") {
-        const sep = "─".repeat(Math.min(this.rightWidth, 50))
-        this.appendScroll(`${C.dim}${sep}${C.reset}`)
-        this.appendScroll(`${C.bold}Phase ${e.payload["phase"]} complete${C.reset}`)
-        this.appendScroll(`${C.dim}${sep}${C.reset}`)
-      }
-
-      if (e.kind === "task.dynamic_inserted") {
-        this.appendScroll(`${C.magenta}⊕ dynamic: ${e.payload["title"]}${C.reset}`)
-      }
-
-      if (e.kind === "approval.required") {
-        this.appendScroll(`${C.yellow}${C.bold}⏸  Approval required — scheduler paused${C.reset}`)
-      }
-    })
-
-    // Initial clear + draw
     this.fullRedraw()
-
-    // Redraw left panel (task list) periodically
-    this.tickInterval = setInterval(() => this.refreshLeft(), 500)
+    this.tick = setInterval(() => this.refreshLeft(), 500)
   }
 
   stop(): void {
-    if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null }
+    if (this.tick) { clearInterval(this.tick); this.tick = null }
     this.rl?.close()
-    // Move cursor to safe position below everything
-    process.stdout.write(`\x1b[${this.termHeight};0H\n`)
+    process.stdout.write(`\x1b[${this.th};0H\n`)
   }
 
-  // Prompt the user for a follow-up task injection (called from interactive runner)
-  promptFollowup(_completedTask: TaskNode): Promise<string> {
+  promptFollowup(_task: TaskNode): Promise<string> {
     return new Promise(resolve => {
-      this.appendScroll(`${C.cyan}追加任务？${C.reset}${C.dim}(回车跳过)${C.reset}`)
-      this.renderBottom()
-
+      this.pushLog(`${C.cyan}追加任务？${C.reset}${C.dim} 回车跳过${C.reset}`)
       if (!process.stdin.isTTY) { resolve(""); return }
 
       const rl = createInterface({ input: process.stdin, output: process.stdout })
       this.rl = rl
-
-      const inputRow = this.scrollAreaBottom()
-      process.stdout.write(`\x1b[${inputRow};${this.leftWidth + 4}H${C.cyan}> ${C.reset}`)
-
+      const col = this.lw + 3
+      const row = this.logBottom()
+      process.stdout.write(`\x1b[${row};${col}H${C.cyan}> ${C.reset}`)
       rl.once("line", (input: string) => {
-        rl.close()
-        this.rl = null
-        if (input.trim()) {
-          this.appendScroll(`${C.cyan}→ 已插入: "${input.trim()}"${C.reset}`)
-        }
+        rl.close(); this.rl = null
+        if (input.trim()) this.pushLog(`${C.cyan}→ "${input.trim()}"${C.reset}`)
         resolve(input.trim())
       })
     })
   }
 
-  // ── Token stream handler ────────────────────────────────────────────────────
+  // ── Event handling ────────────────────────────────────────────────────────
+
+  private handleEvent(kind: string, payload: Record<string, unknown>): void {
+    if (kind === "task.status_changed") {
+      const taskId = payload["taskId"] as string
+      const next   = payload["next"]   as string
+      const task   = this.conductor.taskDag.getTask(taskId)
+      if (!task) return
+
+      if (next === "running") {
+        const agentId = task.assignedTo ?? taskId
+        this.slots.set(agentId, {
+          taskId, title: task.title, type: task.type,
+          startedAt: Date.now(), lastLine: "",
+        })
+        // Only show start event in stream mode
+        if (this.verbose === "stream") {
+          this.pushLog(`${C.cyan}▶${C.reset} ${C.dim}[${task.type}]${C.reset} ${task.title}`)
+        }
+
+      } else if (next === "done" || next === "failed" || next === "interrupted") {
+        const entry = [...this.slots.entries()].find(([, s]) => s.taskId === taskId)
+        const agentId = entry?.[0]
+        const slot    = entry?.[1]
+
+        if (slot) {
+          const dur = elapsed(Date.now() - slot.startedAt)
+          const tok = task.tokenUsage
+          const tokStr = tok ? `${C.dim} · ${tok.inputTokens.toLocaleString()} tok${C.reset}` : ""
+          const icon   = next === "done" ? `${C.green}✓${C.reset}` : `${C.red}✗${C.reset}`
+          const typeTag = `${C.dim}[${slot.type}]${C.reset}`
+
+          // Always log task completion — this is the one line per task
+          this.pushLog(`${icon} ${typeTag} ${task.title}  ${C.dim}${dur}${C.reset}${tokStr}`)
+
+          // Summary only in summary / stream modes
+          if ((this.verbose === "summary" || this.verbose === "stream") && next === "done") {
+            this.pushSummary(task)
+          }
+
+          if (agentId) this.slots.delete(agentId)
+        }
+        if (agentId) this.tokBuf.delete(agentId)
+      }
+      return
+    }
+
+    if (kind === "phase.completed") {
+      const sep = `${C.dim}${"─".repeat(Math.min(this.rw - 2, 48))}${C.reset}`
+      this.pushLog(sep)
+      this.pushLog(`${C.bold}  Phase ${payload["phase"]} complete${C.reset}`)
+      this.pushLog(sep)
+      return
+    }
+
+    if (kind === "task.dynamic_inserted") {
+      this.pushLog(`${C.magenta}⊕${C.reset} ${C.dim}inserted:${C.reset} ${payload["title"]}`)
+      return
+    }
+
+    if (kind === "approval.required") {
+      this.pushLog(`${C.yellow}${C.bold}⏸  Approval required — paused${C.reset}`)
+      return
+    }
+  }
+
+  // ── Token stream ─────────────────────────────────────────────────────────
 
   private handleDelta(agentId: string, task: TaskNode, delta: string): void {
-    let slot = this.slots.get(agentId)
-    if (!slot) {
-      // Slot may not have been created yet (race), create it now
-      slot = {
-        agentId, taskId: task.id,
-        title: task.title, role: task.type,
-        startedAt: Date.now(), buffer: "", lineCount: 0,
-      }
-      this.slots.set(agentId, slot)
-    }
-    slot.buffer += delta
+    // Always update the slot's lastLine so it shows in the left panel
+    const slot = this.slots.get(agentId)
+    const buf  = (this.tokBuf.get(agentId) ?? "") + delta
+    this.tokBuf.set(agentId, buf)
 
-    // Only show lines that end with newline (complete thoughts), or flush long buffers
-    const lines = slot.buffer.split("\n")
-    if (lines.length > 1) {
+    // Extract the most recent complete thought for the left panel hint
+    const lines = buf.split("\n")
+    const lastComplete = lines.slice(0, -1).map(l => l.trim()).filter(Boolean).at(-1)
+    if (lastComplete && slot) {
+      slot.lastLine = lastComplete.slice(0, this.lw - 4)
+    }
+
+    // In stream mode: flush complete lines to the right panel
+    if (this.verbose === "stream" && lines.length > 1) {
       for (let i = 0; i < lines.length - 1; i++) {
         const line = lines[i]!.trim()
         if (line) {
-          const agentLabel = `${C.dim}[${task.type.slice(0, 3)}]${C.reset}`
-          this.appendScroll(`  ${agentLabel} ${line.slice(0, this.rightWidth - 8)}`)
-          slot.lineCount++
+          const label = `${C.dim}  ${task.type.slice(0, 3)}${C.reset}`
+          this.pushLog(`${label} ${line}`)
         }
       }
-      slot.buffer = lines[lines.length - 1]!
-    } else if (slot.buffer.length > this.rightWidth - 8) {
-      // Flush long unbuffered line
-      const agentLabel = `${C.dim}[${task.type.slice(0, 3)}]${C.reset}`
-      this.appendScroll(`  ${agentLabel} ${slot.buffer.trim().slice(0, this.rightWidth - 8)}`)
-      slot.buffer = ""
-      slot.lineCount++
+      this.tokBuf.set(agentId, lines[lines.length - 1]!)
+    } else {
+      // Trim buffer to avoid unbounded growth
+      if (buf.length > 4096) this.tokBuf.set(agentId, buf.slice(-2048))
     }
   }
 
-  // ── Task summary ────────────────────────────────────────────────────────────
+  // ── Summary box ───────────────────────────────────────────────────────────
 
-  private appendTaskSummary(task: TaskNode): void {
+  private pushSummary(task: TaskNode): void {
     if (!task.output) return
-    const w = this.rightWidth - 4
+    const w = this.rw - 6
 
-    this.appendScroll(`${C.dim}  ┌${"─".repeat(Math.min(w, 54))}${C.reset}`)
-    for (const line of task.output.summary.split("\n").slice(0, 5)) {
-      const t = line.trim()
-      if (t) this.appendScroll(`${C.dim}  │${C.reset} ${t.slice(0, w)}`)
+    // Summary: up to 3 lines
+    const summaryLines = task.output.summary
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+
+    // Risks: HIGH/CRITICAL only (keep noise down)
+    const highRisks = task.output.risks
+      .filter(r => /\b(critical|high|severe|security)\b/i.test(r))
+      .slice(0, 2)
+
+    const blockers = task.output.blockers
+      .map(b => b.trim()).filter(Boolean).slice(0, 1)
+
+    if (!summaryLines.length && !highRisks.length && !blockers.length) return
+
+    this.pushLog(`${C.dim}  ╭${"─".repeat(Math.min(w, 50))}${C.reset}`)
+    for (const line of summaryLines) {
+      this.pushLog(`${C.dim}  │${C.reset} ${line.slice(0, w)}`)
     }
-    for (const r of task.output.risks.slice(0, 2)) {
-      if (r.trim()) this.appendScroll(`${C.dim}  │${C.reset} ${C.yellow}⚠${C.reset} ${r.trim().slice(0, w - 2)}`)
+    for (const r of highRisks) {
+      this.pushLog(`${C.dim}  │${C.reset} ${C.yellow}▲${C.reset} ${r.trim().slice(0, w - 2)}`)
     }
-    for (const b of task.output.blockers.slice(0, 1)) {
-      if (b.trim()) this.appendScroll(`${C.dim}  │${C.reset} ${C.red}✗${C.reset} ${b.trim().slice(0, w - 2)}`)
+    for (const b of blockers) {
+      this.pushLog(`${C.dim}  │${C.reset} ${C.red}✗${C.reset} ${b.slice(0, w - 2)}`)
     }
-    this.appendScroll(`${C.dim}  └${"─".repeat(Math.min(w, 54))}${C.reset}`)
+    this.pushLog(`${C.dim}  ╰${"─".repeat(Math.min(w, 50))}${C.reset}`)
   }
 
-  // ── Scroll buffer ────────────────────────────────────────────────────────────
+  // ── Log buffer ────────────────────────────────────────────────────────────
 
-  private appendScroll(line: string): void {
-    this.scrollLines.push(line)
-    if (this.scrollLines.length > this.maxScrollLines) {
-      this.scrollLines.shift()
-    }
-    this.renderScrollLine(line)
+  private pushLog(line: string): void {
+    this.log.push(line)
+    if (this.log.length > this.maxLog) this.log.shift()
+    this.renderLog()
   }
 
-  // ── Rendering ────────────────────────────────────────────────────────────────
+  // ── Rendering ─────────────────────────────────────────────────────────────
 
-  private scrollAreaHeight(): number {
-    return Math.max(MIN_SCROLL_H, this.termHeight - HEADER_ROWS - FOOTER_ROWS - 2)
+  private logHeight(): number {
+    return Math.max(MIN_LOG_H, this.th - HEADER_ROWS - FOOTER_ROWS - 1)
   }
 
-  private scrollAreaBottom(): number {
-    return HEADER_ROWS + this.scrollAreaHeight() + 1
+  private logBottom(): number {
+    return HEADER_ROWS + this.logHeight()
   }
 
   private fullRedraw(): void {
-    process.stdout.write("\x1b[2J\x1b[H")   // clear screen, cursor to top
+    process.stdout.write("\x1b[2J\x1b[H")
     this.renderHeader()
     this.renderDivider()
     this.renderLeft()
-    // Render the last N lines of scroll buffer into right pane
-    const h = this.scrollAreaHeight()
-    const visible = this.scrollLines.slice(-h)
-    for (let i = 0; i < visible.length; i++) {
-      this.renderRightLine(HEADER_ROWS + 1 + i, visible[i]!)
-    }
-    this.renderBottom()
+    this.renderLog()
+    this.renderFooter()
   }
 
   private renderHeader(): void {
-    const s = this.conductor.status()
-    const done = s.tasks.done, total = s.tasks.total
-    const pct = total === 0 ? 0 : Math.round((done / total) * 100)
-    const now = new Date().toLocaleTimeString("en-GB", { hour12: false })
+    const s    = this.conductor.status()
+    const done = s.tasks.done
+    const tot  = s.tasks.total
+    const pct  = tot === 0 ? 0 : Math.round((done / tot) * 100)
+    const now  = new Date().toLocaleTimeString("en-GB", { hour12: false })
 
-    let tokStr = ""
+    let tokLine = ""
     try {
       const tok = this.conductor.store.tokenStats()
       if (tok.totalTokens > 0) {
-        tokStr = `  ${C.yellow}${tok.totalTokens.toLocaleString()}tok${C.reset} ${C.green}${tok.cacheHitRate}%cache${C.reset}`
+        tokLine = `  ${C.yellow}${tok.totalTokens.toLocaleString()} tok${C.reset}  ${C.green}${tok.cacheHitRate}% cache${C.reset}`
       }
     } catch { /* ok */ }
 
-    const title = `SWARM CONDUCTOR  Phase ${s.phase}  ${bar(done, total)}  ${done}/${total} (${pct}%)${tokStr}`
-    process.stdout.write(`\x1b[1;0H`)  // row 1, col 1
-    process.stdout.write(`${C.bold}${C.bgDark} ${title.padEnd(this.termWidth - 2)} ${C.reset}\n`)
+    // Row 1: title + progress
+    const title = `  SWARM  Phase ${s.phase}  ${bar(done, tot)}  ${done}/${tot} (${pct}%)${tokLine}`
+    const timeStr = `${now}  `
+    const padLen  = Math.max(0, this.tw - stripAnsi(title).length - timeStr.length)
     process.stdout.write(
-      `${C.dim} idle:${s.agents.idle}  busy:${s.agents.busy}  locks:${s.locks}` +
-      `  running:${s.tasks.running}  ready:${s.tasks.ready}  blocked:${s.tasks.blocked}  failed:${s.tasks.failed}` +
-      `  ${now}${C.reset}`.padEnd(this.termWidth) + "\n"
+      `\x1b[1;0H${C.bold}${C.bgDark}${title}${" ".repeat(padLen)}${C.dim}${timeStr}${C.reset}\n`
     )
+
+    // Row 2: agent status (compact)
+    const agents = `  ${C.dim}agents  idle ${s.agents.idle}  busy ${s.agents.busy}  locks ${s.locks}` +
+      `    tasks  run ${s.tasks.running}  rdy ${s.tasks.ready}  blk ${s.tasks.blocked}  fail ${s.tasks.failed}${C.reset}`
+    process.stdout.write(`${agents}\n`)
   }
 
   private renderDivider(): void {
-    // Vertical divider between left and right — draw once on full redraw
-    const h = this.scrollAreaHeight()
-    for (let r = 0; r < h + 2; r++) {
-      const row = HEADER_ROWS + r
-      process.stdout.write(`\x1b[${row};${this.leftWidth + 1}H${C.dim}│${C.reset}`)
+    const h = this.logHeight()
+    for (let r = 0; r <= h + 1; r++) {
+      process.stdout.write(`\x1b[${HEADER_ROWS + r};${this.lw + 1}H${C.dim}│${C.reset}`)
     }
   }
 
   private renderLeft(): void {
-    const tasks = this.conductor.taskDag.allTasks()
-    const h = this.scrollAreaHeight()
+    const tasks    = this.conductor.taskDag.allTasks()
+    const h        = this.logHeight()
     const startRow = HEADER_ROWS + 1
 
-    // Header
-    process.stdout.write(`\x1b[${startRow};1H`)
-    process.stdout.write(`${C.bold} ${"TASKS".padEnd(this.leftWidth - 2)}${C.reset}`)
+    // Left panel header
+    process.stdout.write(`\x1b[${startRow};1H${C.bold}${C.dim} TASKS${C.reset}${" ".repeat(this.lw - 6)}`)
 
     for (let i = 0; i < Math.min(h - 1, tasks.length); i++) {
-      const t = tasks[i]!
+      const t   = tasks[i]!
       const row = startRow + 1 + i
       process.stdout.write(`\x1b[${row};1H`)
 
-      const icon = statusIcon[t.status] ?? "·"
-      let line: string
-      const dur = (t.startedAt && t.status === "running")
-        ? ` ${C.dim}${elapsed(Date.now() - t.startedAt)}${C.reset}` : ""
-      const title = t.title.slice(0, this.leftWidth - 5)
+      const icon  = STATUS_ICON[t.status] ?? "·"
+      const title = t.title.slice(0, this.lw - 5)
 
+      let line: string
       if (t.status === "running") {
+        // Show elapsed time
+        const dur = t.startedAt ? ` ${C.dim}${elapsed(Date.now() - t.startedAt)}${C.reset}` : ""
         line = ` ${icon} ${C.cyan}${title}${C.reset}${dur}`
+
+        // In summary mode: show last token hint below title in dim
+        if (this.verbose !== "quiet") {
+          const slot = [...this.slots.values()].find(s => s.taskId === t.id)
+          if (slot?.lastLine) {
+            const hint = slot.lastLine.slice(0, this.lw - 4)
+            const stripped = stripAnsi(line)
+            const pad = Math.max(0, this.lw - stripped.length)
+            process.stdout.write(line + " ".repeat(pad))
+            // Write hint on next row if space allows
+            if (i + 1 < h - 1 && (i + 1 >= tasks.length || tasks[i + 1]!.status !== "running")) {
+              process.stdout.write(`\x1b[${row + 1};1H ${C.dim}  ╰ ${hint}${C.reset}${" ".repeat(Math.max(0, this.lw - hint.length - 5))}`)
+            }
+            continue
+          }
+        }
       } else if (t.status === "done") {
         line = ` ${icon} ${C.dim}${title}${C.reset}`
+      } else if (t.status === "failed") {
+        line = ` ${icon} ${C.red}${title}${C.reset}`
       } else {
-        line = ` ${icon} ${title}${dur}`
+        line = ` ${icon} ${title}`
       }
 
-      // Pad to left width and clear rest of line in left column
-      const stripped = line.replace(/\x1b\[[^m]*m/g, "")
-      const pad = Math.max(0, this.leftWidth - stripped.length)
+      const stripped = stripAnsi(line)
+      const pad      = Math.max(0, this.lw - stripped.length)
       process.stdout.write(line + " ".repeat(pad))
     }
 
-    // Clear remaining rows in left pane
+    // Clear unused rows
     for (let i = tasks.length; i < h - 1; i++) {
-      process.stdout.write(`\x1b[${startRow + 1 + i};1H${" ".repeat(this.leftWidth)}`)
+      process.stdout.write(`\x1b[${startRow + 1 + i};1H${" ".repeat(this.lw)}`)
     }
   }
 
   private refreshLeft(): void {
     this.renderHeader()
     this.renderLeft()
-    this.renderBottom()
+    this.renderFooter()
   }
 
-  private renderScrollLine(_line: string): void {
-    const h = this.scrollAreaHeight()
-    const startRow = HEADER_ROWS + 2  // +1 for tasks header
+  private renderLog(): void {
+    const h        = this.logHeight()
+    const startRow = HEADER_ROWS + 1
+    const visible  = this.log.slice(-h)
+    const col      = this.lw + 3
 
-    // Scroll visible area up by 1, then write new line at bottom
-    // Simple approach: re-render last N lines of scroll buffer
-    const visible = this.scrollLines.slice(-h)
-    for (let i = 0; i < visible.length; i++) {
-      this.renderRightLine(startRow + i, visible[i]!)
-    }
-    // Clear any line below (in case count decreased)
-    if (visible.length < h) {
-      process.stdout.write(`\x1b[${startRow + visible.length};${this.leftWidth + 3}H${" ".repeat(this.rightWidth)}`)
+    for (let i = 0; i < h; i++) {
+      const line = visible[i] ?? ""
+      process.stdout.write(`\x1b[${startRow + i};${col}H`)
+      this.writeRightLine(line)
     }
   }
 
-  private renderRightLine(row: number, line: string): void {
-    process.stdout.write(`\x1b[${row};${this.leftWidth + 3}H`)
-    // Truncate to right panel width (accounting for ANSI codes)
-    const stripped = line.replace(/\x1b\[[^m]*m/g, "")
-    const maxLen = this.rightWidth
-    let out = line
-    if (stripped.length > maxLen) {
-      // Trim visible characters while keeping ANSI codes intact
-      let vis = 0, idx = 0
-      while (idx < line.length && vis < maxLen - 1) {
-        if (line[idx] === "\x1b") {
-          while (idx < line.length && line[idx] !== "m") idx++
-          idx++
-        } else {
-          vis++; idx++
-        }
-      }
-      out = line.slice(0, idx) + C.reset
+  private writeRightLine(line: string): void {
+    const max     = this.rw - 1
+    const stripped = stripAnsi(line)
+    if (stripped.length <= max) {
+      process.stdout.write(line + " ".repeat(Math.max(0, max - stripped.length)) + C.reset)
+      return
     }
-    process.stdout.write(out + " ".repeat(Math.max(0, maxLen - stripped.length)) + C.reset)
+    // Trim preserving ANSI codes
+    let vis = 0, idx = 0
+    while (idx < line.length && vis < max - 1) {
+      if (line[idx] === "\x1b") {
+        while (idx < line.length && line[idx] !== "m") idx++
+        idx++
+      } else { vis++; idx++ }
+    }
+    process.stdout.write(line.slice(0, idx) + C.reset + " ")
   }
 
-  private renderBottom(): void {
-    const row = this.scrollAreaBottom() + 1
-    process.stdout.write(`\x1b[${row};0H`)
-    const s = this.conductor.status()
-    const aStr = s.pendingApprovals > 0
-      ? `${C.yellow}${C.bold}⏸ APPROVAL PENDING${C.reset}`
-      : `${C.dim}Press Ctrl+C to stop${C.reset}`
-    process.stdout.write(`${C.dim}${"─".repeat(this.termWidth)}${C.reset}\n`)
-    process.stdout.write(` ${aStr}`)
+  private renderFooter(): void {
+    const row = this.logBottom() + 1
+    const s   = this.conductor.status()
+    process.stdout.write(`\x1b[${row};0H${C.dim}${"─".repeat(this.tw)}${C.reset}\n`)
+
+    if (s.pendingApprovals > 0) {
+      process.stdout.write(` ${C.yellow}${C.bold}⏸  Approval required — type y/n${C.reset}`)
+    } else {
+      const mode = this.verbose === "quiet" ? "quiet" : this.verbose === "stream" ? "stream" : "summary"
+      process.stdout.write(` ${C.dim}Ctrl+C to stop  ·  mode: ${mode}${C.reset}`)
+    }
   }
 }

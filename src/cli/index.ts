@@ -8,7 +8,7 @@ import { join } from "path"
 import { loadTaskFile } from "./task-file"
 import { goalToTaskGraph } from "./goal-planner"
 import { InteractiveRunner } from "./interactive"
-import { LiveView } from "./live-view"
+import { LiveView, type VerboseLevel } from "./live-view"
 
 // ─── ANSI helpers ─────────────────────────────────────────────────────────────
 
@@ -195,6 +195,9 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   const goal       = flags["goal"]   ?? null
   const outputPath = flags["output"] ?? null
   const noInteract = flags["no-interact"] === "true" || flags["auto-approve"] === "true"
+  const verbose: VerboseLevel =
+    flags["stream"] === "true"  ? "stream"  :
+    flags["quiet"]  === "true"  ? "quiet"   : "summary"
 
   if (!tasksFile && !goal) {
     console.error(`${C.red}Error:${C.reset} Provide --goal "..." or --tasks <file>`)
@@ -244,7 +247,7 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   console.log(`✓ Ready\n`)
 
   // ── Start LiveView (replaces old dashboard + interactive runner) ───────────
-  const liveView = new LiveView(conductor)
+  const liveView = new LiveView(conductor, verbose)
   liveView.start()
 
   const interactive = new InteractiveRunner(conductor, noInteract, liveView)
@@ -284,6 +287,8 @@ function printHelp(): void {
   console.log(`  --agents <n>           最大并发 agent 数 ${C.dim}(默认: 5)${C.reset}`)
   console.log(`  --auto-approve         自动批准所有 tool call`)
   console.log(`  --no-interact          全自动模式，不在任务间暂停`)
+  console.log(`  --quiet                只显示任务完成一行（无摘要）`)
+  console.log(`  --stream               显示完整 token 流（调试用）`)
   console.log(`  --output <path>        JSON 报告保存路径`)
   console.log(`  --dynamic-tasks false  关闭动态任务生成`)
   console.log(`  --bin <path>           CodeWhale 二进制路径`)
