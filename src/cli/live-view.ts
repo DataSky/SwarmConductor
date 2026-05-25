@@ -60,16 +60,23 @@ interface AgentSlot {
 export class LiveView {
   private conductor: Conductor
   private verbose: VerboseLevel
-  private slots   = new Map<string, AgentSlot>()  // agentId → slot
-  private log:    string[] = []                   // right-panel event log
+  private slots   = new Map<string, AgentSlot>()
+  private log:    string[] = []
   private maxLog  = 500
-  private tokBuf  = new Map<string, string>()     // agentId → unfinished line buffer
+  private tokBuf  = new Map<string, string>()
   private tw = process.stdout.columns || 120
   private th = process.stdout.rows    || 30
   private lw = Math.min(LEFT_W, Math.floor((process.stdout.columns || 120) * 0.32))
   private get rw() { return this.tw - this.lw - 2 }
   private tick: ReturnType<typeof setInterval> | null = null
   private rl:   ReturnType<typeof createInterface> | null = null
+
+  // ── Stability guards ───────────────────────────────────────────────────────
+  private isTUI    = false  // false = plain-text fallback (narrow/non-TTY terminal)
+  private rendering = false  // mutex: prevents concurrent ANSI writes
+  private leftDirty = false  // coalesces rapid left-panel refreshes
+  private logDirty  = false  // coalesces rapid log refreshes
+  private exitHandlers: Array<() => void> = []
 
   constructor(conductor: Conductor, verbose: VerboseLevel = "summary") {
     this.conductor = conductor
@@ -79,10 +86,31 @@ export class LiveView {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   start(): void {
+    // Detect whether we can render a TUI (needs TTY + minimum width)
+    this.isTUI = !!process.stdout.isTTY && this.tw >= 60
+
+    // Register exit/signal handlers to restore terminal state
+    const cleanup = () => { this.stop(); }
+    const onUncaught = (err: unknown) => {
+      this.stop()
+      console.error("\n[swarm] uncaught error:", err)
+      process.exit(1)
+    }
+    process.on("SIGINT",  cleanup)
+    process.on("SIGTERM", cleanup)
+    process.on("uncaughtException", onUncaught)
+    this.exitHandlers = [
+      () => process.off("SIGINT",  cleanup),
+      () => process.off("SIGTERM", cleanup),
+      () => process.off("uncaughtException", onUncaught),
+    ]
+
+    // Resize: re-detect TUI eligibility + full redraw
     process.stdout.on("resize", () => {
       this.tw = process.stdout.columns || 120
       this.th = process.stdout.rows    || 30
       this.lw = Math.min(LEFT_W, Math.floor(this.tw * 0.32))
+      this.isTUI = !!process.stdout.isTTY && this.tw >= 60
       this.fullRedraw()
     })
 
@@ -93,13 +121,22 @@ export class LiveView {
     this.conductor.onEvent(e => this.handleEvent(e.kind, e.payload))
 
     this.fullRedraw()
-    this.tick = setInterval(() => this.refreshLeft(), 500)
+    // Coalesced refresh: flush dirty flags at most once per tick
+    this.tick = setInterval(() => {
+      if (this.leftDirty || this.logDirty) this.flushDirty()
+    }, 500)
   }
 
   stop(): void {
     if (this.tick) { clearInterval(this.tick); this.tick = null }
     this.rl?.close()
-    process.stdout.write(`\x1b[${this.th};0H\n`)
+    // Deregister signal handlers
+    for (const off of this.exitHandlers) off()
+    this.exitHandlers = []
+    if (this.isTUI) {
+      // Restore cursor to bottom, show it
+      process.stdout.write(`\x1b[?25h\x1b[${this.th};0H\n`)
+    }
   }
 
   promptFollowup(_task: TaskNode): Promise<string> {
@@ -109,9 +146,15 @@ export class LiveView {
 
       const rl = createInterface({ input: process.stdin, output: process.stdout })
       this.rl = rl
-      const col = this.lw + 3
-      const row = this.logBottom()
-      process.stdout.write(`\x1b[${row};${col}H${C.cyan}> ${C.reset}`)
+
+      if (this.isTUI) {
+        // Position cursor in the right panel at the log bottom
+        const col = this.lw + 3
+        const row = this.logBottom()
+        process.stdout.write(`\x1b[${row};${col}H${C.cyan}> ${C.reset}`)
+      } else {
+        process.stdout.write(`${C.cyan}> ${C.reset}`)
+      }
       rl.once("line", (input: string) => {
         rl.close(); this.rl = null
         if (input.trim()) this.pushLog(`${C.cyan}→ "${input.trim()}"${C.reset}`)
@@ -258,7 +301,30 @@ export class LiveView {
   private pushLog(line: string): void {
     this.log.push(line)
     if (this.log.length > this.maxLog) this.log.shift()
-    this.renderLog()
+    if (!this.isTUI) {
+      // Plain-text mode: just print to stdout directly
+      console.log(stripAnsi(line))
+      return
+    }
+    this.logDirty = true
+    // Immediate render only if not currently rendering (avoids cursor conflict)
+    if (!this.rendering) this.flushDirty()
+  }
+
+  // ── Dirty flush (called by interval + immediate path) ────────────────────
+
+  private flushDirty(): void {
+    if (this.rendering) return
+    this.rendering = true
+    try {
+      if (this.leftDirty || this.logDirty) {
+        if (this.leftDirty) { this.renderHeader(); this.renderLeft(); this.leftDirty = false }
+        if (this.logDirty)  { this.renderLog();    this.logDirty  = false }
+        this.renderFooter()
+      }
+    } finally {
+      this.rendering = false
+    }
   }
 
   // ── Rendering ─────────────────────────────────────────────────────────────
@@ -272,15 +338,27 @@ export class LiveView {
   }
 
   private fullRedraw(): void {
-    process.stdout.write("\x1b[2J\x1b[H")
-    this.renderHeader()
-    this.renderDivider()
-    this.renderLeft()
-    this.renderLog()
-    this.renderFooter()
+    if (!this.isTUI) return
+    if (this.rendering) { this.leftDirty = true; this.logDirty = true; return }
+    this.rendering = true
+    try {
+      process.stdout.write("\x1b[?25l")  // hide cursor during redraw
+      process.stdout.write("\x1b[2J\x1b[H")
+      this.renderHeader()
+      this.renderDivider()
+      this.renderLeft()
+      this.renderLog()
+      this.renderFooter()
+      this.leftDirty = false
+      this.logDirty  = false
+    } finally {
+      this.rendering = false
+      process.stdout.write("\x1b[?25h")  // restore cursor
+    }
   }
 
   private renderHeader(): void {
+    if (!this.isTUI) return
     const s    = this.conductor.status()
     const done = s.tasks.done
     const tot  = s.tasks.total
@@ -370,12 +448,6 @@ export class LiveView {
     for (let i = tasks.length; i < h - 1; i++) {
       process.stdout.write(`\x1b[${startRow + 1 + i};1H${" ".repeat(this.lw)}`)
     }
-  }
-
-  private refreshLeft(): void {
-    this.renderHeader()
-    this.renderLeft()
-    this.renderFooter()
   }
 
   private renderLog(): void {
