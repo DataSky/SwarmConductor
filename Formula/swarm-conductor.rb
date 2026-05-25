@@ -7,19 +7,19 @@
 class SwarmConductor < Formula
   desc "Multi-agent orchestration layer for CodeWhale — run 10+ AI coding agents in parallel"
   homepage "https://github.com/DataSky/SwarmConductor"
-  version "0.1.5"
+  version "0.1.6"
   license "MIT"
 
   on_macos do
     on_arm do
       url "https://github.com/DataSky/SwarmConductor/releases/download/v#{version}/swarm-conductor-#{version}-darwin-arm64.tar.gz"
       # sha256 will be updated by CI after each release
-      sha256 "ee60d969654c4a9613aa543ff0f7eefecb0fa5be4fad5908afcdd6b8b8400420"
+      sha256 "348b05730b47d909843e1db9a408b3a2f95031e565326115cd15dd734f33c642"
     end
 
     on_intel do
       url "https://github.com/DataSky/SwarmConductor/releases/download/v#{version}/swarm-conductor-#{version}-darwin-x64.tar.gz"
-      sha256 "02c0a0093d22c52d2d475c614a8c7becf1e6d867d501d64ee1c7090f17be2a19"
+      sha256 "2eee1ff69c5b29e077c7da4b635f0be1cfb539f81edef777230648674b6401fd"
     end
   end
 
