@@ -325,12 +325,75 @@ function buildModelMap(flags: Record<string, string>): Partial<Record<string, st
   return map
 }
 
+// ─── Interactive start ────────────────────────────────────────────────────────
+
+async function runInteractive(config: ConductorConfig, flags: Record<string, string>): Promise<void> {
+  const { createInterface } = await import("readline")
+
+  console.log()
+  console.log(`${C.bold}${C.cyan}  SWARM CONDUCTOR${C.reset}`)
+  console.log(`  ${C.dim}Multi-agent coding swarm${C.reset}`)
+  console.log()
+
+  // ── Project path ───────────────────────────────────────────────────────────
+  const project = flags["project"] ?? process.cwd()
+  console.log(`  ${C.dim}Project: ${project}${C.reset}`)
+  console.log()
+
+  // ── Goal input ─────────────────────────────────────────────────────────────
+  const goal = await new Promise<string>(resolve => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    process.stdout.write(`  ${C.cyan}Goal:${C.reset} `)
+    rl.once("line", line => { rl.close(); resolve(line.trim()) })
+  })
+
+  if (!goal) {
+    console.error(`${C.red}  Error: goal cannot be empty${C.reset}`)
+    process.exit(1)
+  }
+
+  // ── Optional: agents count ─────────────────────────────────────────────────
+  let agentsStr = flags["agents"] ?? ""
+  if (!agentsStr) {
+    agentsStr = await new Promise<string>(resolve => {
+      const rl = createInterface({ input: process.stdin, output: process.stdout })
+      process.stdout.write(`  ${C.dim}Agents [3]: ${C.reset}`)
+      rl.once("line", line => { rl.close(); resolve(line.trim() || "3") })
+    })
+  }
+  const agents = parseInt(agentsStr) || 3
+
+  // ── Web port (always on for start command) ─────────────────────────────────
+  const webPort = flags["web"] ? parseInt(flags["web"] === "true" ? "9000" : flags["web"]) : 9000
+
+  console.log()
+  console.log(`  ${C.green}▶${C.reset} Starting ${agents} agents  ·  Web → ${C.cyan}http://localhost:${webPort}${C.reset}`)
+  console.log()
+
+  // Open browser after a short delay (give server time to start)
+  setTimeout(() => {
+    const { spawn } = require("child_process") as typeof import("child_process")
+    spawn("open", [`http://localhost:${webPort}`], { detached: true }).unref()
+  }, 2500)
+
+  // Delegate to runLive with constructed flags
+  await runLive(config, {
+    ...flags,
+    goal,
+    agents: String(agents),
+    web: String(webPort),
+    "auto-approve": flags["auto-approve"] ?? "true",
+    "no-interact": flags["no-interact"] ?? "true",
+  })
+}
+
 // ─── Help ─────────────────────────────────────────────────────────────────────
 
 function printHelp(): void {
   console.log(`${C.bold}Swarm Conductor v0.1.1${C.reset}`)
   console.log()
   console.log(`${C.bold}Usage${C.reset}`)
+  console.log(`  swarm start                         交互式输入 Goal，自动开浏览器（推荐）`)
   console.log(`  swarm demo                          验证架构（无需 CodeWhale）`)
   console.log(`  swarm run --goal "..."              用自然语言描述目标`)
   console.log(`  swarm run --tasks <file>            从 YAML 任务文件运行`)
@@ -398,6 +461,9 @@ async function main(): Promise<void> {
       break
     case "run":
       await runLive(config, flags)
+      break
+    case "start":
+      await runInteractive(config, flags)
       break
     default:
       printHelp()
