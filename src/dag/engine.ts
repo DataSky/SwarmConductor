@@ -137,6 +137,7 @@ export class TaskDAG {
     } else {
       task.completedAt = Date.now()
       this.transition(taskId, "failed")
+      this.unblockDownstream(taskId)
     }
   }
 
@@ -144,6 +145,7 @@ export class TaskDAG {
     const task = this.mustGet(taskId)
     task.assignedTo = null
     this.transition(taskId, "interrupted")
+    this.unblockDownstream(taskId)
   }
 
   advancePhase(): void {
@@ -259,12 +261,14 @@ export class TaskDAG {
       return
     }
 
-    const allDone = task.dependsOn.every(depId => {
+    // Unblock when every dependency has reached a terminal state
+    // (done, failed, or interrupted), regardless of whether it succeeded.
+    const allTerminal = task.dependsOn.every(depId => {
       const dep = this.graph.tasks.get(depId)
-      return dep?.status === "done"
+      return dep?.status === "done" || dep?.status === "failed" || dep?.status === "interrupted"
     })
 
-    if (allDone) {
+    if (allTerminal) {
       this.transition(id, "ready")
     } else {
       this.transition(id, "blocked")

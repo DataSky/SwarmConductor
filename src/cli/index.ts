@@ -10,6 +10,7 @@ import { goalToTaskGraph } from "./goal-planner"
 import { aiGoalToTaskGraph, PRIMARY_PLANNER_MODEL } from "./ai-planner"
 import { InteractiveRunner } from "./interactive"
 import { LiveView, type VerboseLevel } from "./live-view"
+import { WebDashboard } from "../web/server"
 
 // ─── ANSI helpers ─────────────────────────────────────────────────────────────
 
@@ -210,6 +211,17 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   const conductor = new Conductor(config)
   await conductor.initialize()
 
+  // Optional web dashboard (parallel to LiveView, both can run simultaneously)
+  const webPortRaw = flags["web"]
+  const webPort = webPortRaw ? parseInt(webPortRaw === "true" ? "9000" : webPortRaw) : null
+  let webDash: WebDashboard | null = null
+  if (webPort) {
+    webDash = new WebDashboard(conductor, webPort)
+    webDash.start()
+    console.log(`  ${C.cyan}Web dashboard → http://localhost:${webPort}${C.reset}`)
+    console.log()
+  }
+
   // ── Load tasks ─────────────────────────────────────────────────────────────
   let taskNodes = []
   let preamble = ""
@@ -277,6 +289,7 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   const wallMs = Date.now() - startMs
 
   liveView.stop()
+  webDash?.stop()
 
   // Clear screen, then print final report
   process.stdout.write("\x1b[2J\x1b[H")
@@ -332,6 +345,7 @@ function printHelp(): void {
   console.log(`  --quiet                只显示任务完成一行（无摘要）`)
   console.log(`  --stream               显示完整 token 流（调试用）`)
   console.log(`  --output <path>        JSON 报告保存路径`)
+  console.log(`  --web [port]           启动 Web Dashboard（默认端口 9000）`)
   console.log(`  --no-ai-plan           跳过 AI 规划，使用内置静态任务模板`)
   console.log(`  --dynamic-tasks false  关闭动态任务生成`)
   console.log(`  --model-worker <m>     所有 sub-agent 使用同一模型`)
