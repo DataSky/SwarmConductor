@@ -162,7 +162,7 @@ body {
 
 #main {
   display: grid;
-  grid-template-columns: 260px 1fr 300px;
+  grid-template-columns: 390px 1fr 360px;
   grid-template-rows: 1fr auto;
   flex: 1;
   overflow: hidden;
@@ -574,8 +574,8 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  #main { grid-template-columns: 1fr 1fr; }
+@media (max-width: 1100px) {
+  #main { grid-template-columns: 390px 1fr; }
   #log-pane { display: none; }
 }
 @media (max-width: 600px) {
@@ -645,6 +645,20 @@ body {
   flex-direction: column;
 }
 #launch-overlay.hidden { display: none; }
+
+/* Modal mode: floats over TUI without covering it fully */
+#launch-overlay.modal-mode {
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(2px);
+}
+#launch-overlay.modal-mode #launch-box {
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  border-color: var(--cyan);
+}
+#launch-overlay.modal-mode #launch-brand,
+#launch-overlay.modal-mode #launch-subtitle,
+#launch-overlay.modal-mode #launch-project { display: none; }
+#launch-overlay.modal-mode #recent-goals-section { display: block; }
 #launch-box {
   width: min(620px, 90vw);
   background: var(--bg2);
@@ -812,6 +826,61 @@ body {
 .history-run-item:hover { background: var(--bg3); color: var(--text); }
 .history-run-status { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
+/* ── Debug monitor panel ─────────────────────────────────────────────────── */
+#debug-panel {
+  position: fixed;
+  bottom: 0; right: 0;
+  width: 420px;
+  max-height: 260px;
+  background: rgba(13,17,23,0.96);
+  border: 1px solid var(--border);
+  border-radius: 8px 0 0 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px -2px 12px rgba(0,0,0,0.5);
+}
+#debug-panel.hidden { display: none; }
+#debug-header {
+  padding: 4px 10px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--dim);
+  border-radius: 8px 0 0 0;
+}
+#debug-header strong { color: var(--yellow); }
+#debug-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.debug-line { color: var(--dim); }
+.debug-line.err { color: var(--red); }
+.debug-line.ok  { color: var(--green); }
+.debug-line.info { color: var(--cyan); }
+#debug-toggle {
+  position: fixed;
+  bottom: 8px; right: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--dim);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 1000;
+  font-family: var(--font-mono);
+}
+#debug-toggle:hover { color: var(--text); }
+
 /* ── Pulse animations already defined above ─────────────────────────────── */
 </style>
 </head>
@@ -835,7 +904,7 @@ body {
 </div>
 
 <!-- Launch overlay (shown when no active tab) -->
-<div id="launch-overlay">
+<div id="launch-overlay" onclick="if(event.target===this&&this.classList.contains('modal-mode'))hideLaunchOverlay()">
   <div id="launch-box">
     <div id="launch-brand">SWARM</div>
     <div id="launch-subtitle">Multi-agent coding swarm</div>
@@ -1102,9 +1171,8 @@ function renderTabBar() {
 }
 
 function switchToTab(tabId) {
-  state.activeTabId = tabId
-  // Save current state
-  if (state.activeTabId) {
+  // Save current tab's state before switching
+  if (state.activeTabId && state.activeTabId !== tabId) {
     state.tabStates[state.activeTabId] = {
       tasks: state.tasks, agents: state.agents,
       status: state.status, tokenStats: state.tokenStats,
@@ -1114,30 +1182,61 @@ function switchToTab(tabId) {
       finalReport: state.finalReport, activeTab: state.activeTab,
     }
   }
-  // Load tab state if we have it
+
+  state.activeTabId = tabId
+  hideLaunchOverlay()
+
+  // Always restore from local cache immediately for fast render
   const saved = state.tabStates[tabId]
   if (saved) {
     Object.assign(state, saved)
-    hideLaunchOverlay()
     renderAll()
-  } else {
-    // Request snapshot from server
-    send({ type: 'select.tab', tabId })
   }
+
+  // Then request fresh snapshot from server (for reconnect / live updates)
+  send({ type: 'select.tab', tabId })
   renderTabBar()
 }
 
 function openNewRun() {
-  state.activeTabId = null
-  showLaunchOverlay()
-  renderTabBar()
+  // If there are active tabs, show as modal (non-destructive)
+  // If no tabs yet, show full-screen welcome
+  const overlay = document.getElementById('launch-overlay')
+  if (state.tabs.length > 0) {
+    overlay.classList.add('modal-mode')
+    // Add close button if not already present
+    if (!document.getElementById('modal-close-btn')) {
+      const closeBtn = document.createElement('button')
+      closeBtn.id = 'modal-close-btn'
+      closeBtn.className = 'btn'
+      closeBtn.style.cssText = 'position:absolute;top:12px;right:12px;font-size:12px;padding:3px 10px'
+      closeBtn.textContent = '✕ Cancel'
+      closeBtn.onclick = hideLaunchOverlay
+      document.getElementById('launch-box').style.position = 'relative'
+      document.getElementById('launch-box').appendChild(closeBtn)
+    }
+  } else {
+    overlay.classList.remove('modal-mode')
+  }
+  // Clear previous error and reset button
+  document.getElementById('launch-error').style.display = 'none'
+  const btn = document.getElementById('launch-start-btn')
+  if (btn) { btn.disabled = false; btn.textContent = '▶ Start Run' }
+  overlay.classList.remove('hidden')
 }
 
 function showLaunchOverlay() {
-  document.getElementById('launch-overlay').classList.remove('hidden')
+  // Called when there are no tabs (initial state)
+  const overlay = document.getElementById('launch-overlay')
+  overlay.classList.remove('modal-mode')
+  overlay.classList.remove('hidden')
 }
+
 function hideLaunchOverlay() {
-  document.getElementById('launch-overlay').classList.add('hidden')
+  const overlay = document.getElementById('launch-overlay')
+  overlay.classList.add('hidden')
+  // If we have an active tab, restore TUI view
+  if (state.activeTabId) renderAll()
 }
 
 function renderRecentGoals() {
@@ -1159,12 +1258,12 @@ function renderRecentGoals() {
 }
 
 function submitLaunch() {
-  const goalText   = (document.getElementById('launch-goal') as HTMLTextAreaElement).value.trim()
-  const agents     = parseInt((document.getElementById('launch-agents') as HTMLSelectElement).value)
-  const modelWorker= (document.getElementById('launch-model') as HTMLSelectElement).value || null
-  const noAiPlan   = (document.getElementById('launch-ai-plan') as HTMLSelectElement).value === 'false'
+  const goalText   = document.getElementById('launch-goal').value.trim()
+  const agents     = parseInt(document.getElementById('launch-agents').value)
+  const modelWorker= document.getElementById('launch-model').value || null
+  const noAiPlan   = document.getElementById('launch-ai-plan').value === 'false'
   const errEl      = document.getElementById('launch-error')
-  const btn        = document.getElementById('launch-start-btn') as HTMLButtonElement
+  const btn        = document.getElementById('launch-start-btn')
 
   if (!goalText) {
     errEl.textContent = 'Goal cannot be empty'
@@ -1209,9 +1308,9 @@ async function loadHistory() {
         <div class="history-run-list" id="runs-${g.id}"></div>
       `
       item.onclick = async (e) => {
-        if ((e.target as HTMLElement).closest('.history-run-item')) return
+        if (e.target.closest('.history-run-item')) return
         item.classList.toggle('expanded')
-        const runList = document.getElementById(`runs-${g.id}`)!
+        const runList = document.getElementById(`runs-${g.id}`)
         if (item.classList.contains('expanded') && !runList.innerHTML) {
           const runs = await fetch(`/api/goals/${g.id}/runs`).then(r => r.json())
           runList.innerHTML = runs.length ? '' : '<div style="padding:4px 8px;color:var(--dim);font-size:11px">No runs yet</div>'
@@ -1293,14 +1392,22 @@ function setConnStatus(s) {
   const label = document.getElementById('conn-label')
   dot.className   = `dot dot-${s === 'live' ? 'live' : s === 'reconnect' ? 'reconnect' : 'replay'}`
   label.textContent = s === 'live' ? 'LIVE' : s === 'reconnect' ? 'RECONNECTING…' : 'REPLAY'
+  // Update debug indicator
+  const dbgDot = document.getElementById('debug-ws-status')
+  if (dbgDot) {
+    dbgDot.style.color = s === 'live' ? 'var(--green)' : s === 'reconnect' ? 'var(--yellow)' : 'var(--dim)'
+  }
+  dbg(`WS ${s}`, s === 'live' ? 'ok' : s === 'reconnect' ? 'err' : '')
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
 
 function handleMessage(msg) {
-  // ── Serve-mode routing: messages with tabId go to the right tab ──────────
+  // Always log to debug panel
+  dbg(`← ${msg.type}${msg.tabId ? ' ['+msg.tabId.slice(-6)+']' : ''}${msg.error ? ' ERR:'+msg.error : ''}`)
+
+  // ── Serve-mode routing: messages with tabId ───────────────────────────────
   if (msg.tabId && state.serveMode) {
-    // Cache state for this tab
     if (!state.tabStates[msg.tabId]) state.tabStates[msg.tabId] = {}
 
     if (msg.type === 'snapshot') {
@@ -1312,19 +1419,25 @@ function handleMessage(msg) {
         runStartMs: Date.now(), runFinished: false, finalReport: null,
         activeTab: 'log',
       }
-      if (msg.tabId === state.activeTabId) {
+      // Auto-switch to new tab when snapshot arrives
+      if (!state.activeTabId || state.activeTabId === msg.tabId) {
+        state.activeTabId = msg.tabId
         Object.assign(state, state.tabStates[msg.tabId])
         hideLaunchOverlay()
-        // Reset launch button
-        const btn = document.getElementById('launch-start-btn') as HTMLButtonElement
-        btn.disabled = false; btn.textContent = '▶ Start Run'
+        const btn = document.getElementById('launch-start-btn')
+        if (btn) { btn.disabled = false; btn.textContent = '▶ Start Run' }
         renderAll()
+        renderTabBar()
       }
       return
     }
 
-    // For tick/event/delta/log/run.finished: only apply if this is the active tab
-    if (msg.tabId !== state.activeTabId) return
+    // run.error and run.planning always show regardless of active tab
+    if (msg.type === 'run.error' || msg.type === 'run.planning') {
+      // fall through to switch below
+    } else if (msg.tabId !== state.activeTabId) {
+      return  // other tabbed messages: ignore if not active
+    }
   }
 
   switch (msg.type) {
@@ -1332,14 +1445,34 @@ function handleMessage(msg) {
       applyServerState(msg)
       break
 
+    case 'run.planning': {
+      // Server started planning — update button to show progress
+      const btn = document.getElementById('launch-start-btn')
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Planning…' }
+      // Add pending tab to tab bar immediately for feedback
+      if (msg.tabId && !state.tabs.find(t => t.tabId === msg.tabId)) {
+        state.tabs.push({ tabId: msg.tabId, runId: '', goalId: '', goalText: msg.goalText ?? '…', agents: 0, status: 'planning' })
+        state.activeTabId = msg.tabId
+        renderTabBar()
+      }
+      break
+    }
+
     case 'run.error': {
       const errEl = document.getElementById('launch-error')
       if (errEl) {
         errEl.textContent = msg.error ?? 'Unknown error'
         errEl.style.display = 'block'
       }
-      const btn = document.getElementById('launch-start-btn') as HTMLButtonElement
+      const btn = document.getElementById('launch-start-btn')
       if (btn) { btn.disabled = false; btn.textContent = '▶ Start Run' }
+      // Remove phantom planning tab if present
+      if (msg.tabId) {
+        state.tabs = state.tabs.filter(t => t.tabId !== msg.tabId)
+        if (state.activeTabId === msg.tabId) state.activeTabId = state.tabs[0]?.tabId ?? null
+        renderTabBar()
+        if (!state.tabs.length) showLaunchOverlay()
+      }
       break
     }
 
@@ -2076,6 +2209,12 @@ function fmtNum(n) {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    // Close new-run modal if open in modal mode
+    const overlay = document.getElementById('launch-overlay')
+    if (!overlay.classList.contains('hidden') && overlay.classList.contains('modal-mode')) {
+      hideLaunchOverlay()
+      return
+    }
     closeInjectModal()
     document.getElementById('approval-overlay').classList.remove('open')
     if (state.selectedTaskId) {
@@ -2089,9 +2228,57 @@ document.addEventListener('keydown', e => {
   }
 })
 
+// ── Debug monitor ─────────────────────────────────────────────────────────────
+
+const _dbgLines = []
+function dbg(line, cls = '') {
+  _dbgLines.push({ line, cls, ts: new Date().toLocaleTimeString('en-GB', {hour12:false}) })
+  if (_dbgLines.length > 200) _dbgLines.shift()
+  const el = document.getElementById('debug-log')
+  if (!el) return
+  const div = document.createElement('div')
+  div.className = 'debug-line' + (cls ? ' ' + cls : '')
+  div.textContent = `${_dbgLines[_dbgLines.length-1].ts} ${line}`
+  el.appendChild(div)
+  el.scrollTop = el.scrollHeight
+}
+
+function toggleDebug() {
+  const panel = document.getElementById('debug-panel')
+  const btn   = document.getElementById('debug-toggle')
+  panel.classList.toggle('hidden')
+  btn.textContent = panel.classList.contains('hidden') ? '🔍 Debug' : '✕ Debug'
+}
+
+// Monkey-patch send() to log outbound messages
+const _origSend = send
+window.send = function(obj) {
+  dbg(`→ ${obj.type}${obj.tabId ? ' ['+String(obj.tabId).slice(-6)+']' : ''}${obj.goalText ? ' "'+String(obj.goalText).slice(0,30)+'"' : ''}`, 'info')
+  _origSend(obj)
+}
+
+// Log WS connection events
+const _origConnect = connect
+window.connect = function() {
+  dbg('WS connecting…')
+  _origConnect()
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 connect()
 </script>
+<!-- Debug monitor panel -->
+<div id="debug-panel" class="hidden">
+  <div id="debug-header">
+    <strong>Debug</strong>
+    <span id="debug-ws-status" style="color:var(--green)">●</span>
+    <button onclick="document.getElementById('debug-log').innerHTML=''" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:10px">Clear</button>
+    <button onclick="toggleDebug()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:11px">✕</button>
+  </div>
+  <div id="debug-log"></div>
+</div>
+<button id="debug-toggle" onclick="toggleDebug()">🔍 Debug</button>
+
 </body>
 </html>

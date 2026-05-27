@@ -51,30 +51,17 @@ export class WebDashboard {
   // ── Lifecycle ───────────────────────────────────────────────────────────────
 
   start(): void {
-    // Subscribe alongside LiveView — does not affect TUI
-    this.conductor.onEvent(e => this.handleConductorEvent(e))
-    this.conductor.onStream((agentId, task, delta, model) =>
-      this.handleDelta(agentId, task, delta, model))
-
-    // 16 ms flush: batch token deltas into one WS frame per agent per frame
-    this.flushTimer = setInterval(() => this.flushDeltas(), 16)
-
-    // 2 s tick: push status + task snapshot
-    this.tickTimer = setInterval(() => this.pushTick(), 2000)
+    this.startEventSubscriptions()
 
     const self = this
     this.server = Bun.serve({
       port: this.port,
       fetch(req, server) {
         const url = new URL(req.url)
-
-        // WebSocket upgrade
         if (url.pathname === "/ws") {
           const ok = server.upgrade(req, { data: {} })
           return ok ? undefined : new Response("WS upgrade failed", { status: 500 })
         }
-
-        // REST endpoints
         return self.handleHTTP(req, url)
       },
       websocket: {
@@ -86,9 +73,23 @@ export class WebDashboard {
   }
 
   stop(): void {
+    this.stopTimers()
+    this.server?.stop()
+  }
+
+  protected startEventSubscriptions(): void {
+    this.conductor.onEvent(e => this.handleConductorEvent(e))
+    this.conductor.onStream((agentId, task, delta, model) =>
+      this.handleDelta(agentId, task, delta, model))
+    // 16 ms flush: batch token deltas into one WS frame per agent per frame
+    this.flushTimer = setInterval(() => this.flushDeltas(), 16)
+    // 2 s tick: push status + task snapshot
+    this.tickTimer = setInterval(() => this.pushTick(), 2000)
+  }
+
+  protected stopTimers(): void {
     if (this.flushTimer) { clearInterval(this.flushTimer); this.flushTimer = null }
     if (this.tickTimer)  { clearInterval(this.tickTimer);  this.tickTimer  = null }
-    this.server?.stop()
   }
 
   // ── HTTP handler ─────────────────────────────────────────────────────────────

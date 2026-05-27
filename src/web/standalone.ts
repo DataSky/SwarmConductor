@@ -33,13 +33,21 @@ interface RunSlot {
 
 class TabDashboard extends WebDashboard {
   constructor(conductor: Conductor, private tabId: string, goal: string) {
-    // port=0 means TabDashboard never starts its own HTTP server
     super(conductor, 0, goal)
   }
 
-  // Override broadcast to inject tabId into every message
+  // Override start() — subscribe to conductor events only, never start HTTP server
+  start(): void {
+    this.startEventSubscriptions()
+  }
+
+  // Override stop() — only clear timers, no server to stop
+  stop(): void {
+    this.stopTimers()
+  }
+
+  // Override broadcast to inject tabId and use shared wss
   broadcast(msg: object): void {
-    // @ts-ignore — access private field on parent; acceptable here
     const wss: Set<import("bun").ServerWebSocket<unknown>> = (this as any)._standaloneWss
     if (!wss || wss.size === 0) return
     const s = JSON.stringify({ ...msg, tabId: this.tabId })
@@ -48,7 +56,6 @@ class TabDashboard extends WebDashboard {
     }
   }
 
-  /** Inject the shared wss from StandaloneServer */
   attachWss(wss: Set<import("bun").ServerWebSocket<unknown>>): void {
     (this as any)._standaloneWss = wss
   }
@@ -147,9 +154,11 @@ export class StandaloneServer {
 
     switch (cmd["type"]) {
       case "start.run":
-        this.handleStartRun(cmd).catch(err =>
-          ws.send(JSON.stringify({ type: "run.error", error: String((err as Error).message ?? err) }))
-        )
+        this.handleStartRun(cmd, ws).catch(err => {
+          const errMsg = String((err as Error).message ?? err)
+          console.error(`[standalone] start.run error: ${errMsg}`)
+          try { ws.send(JSON.stringify({ type: "run.error", error: errMsg })) } catch { /* disconnected */ }
+        })
         break
 
       case "select.tab": {
@@ -227,26 +236,25 @@ export class StandaloneServer {
 
   // ── Start a new run ───────────────────────────────────────────────────────
 
-  private async handleStartRun(cmd: Record<string, unknown>): Promise<void> {
+  private async handleStartRun(cmd: Record<string, unknown>, originWs: import("bun").ServerWebSocket<unknown>): Promise<void> {
     const goalText    = String(cmd["goalText"] ?? "").trim()
     const goalId      = cmd["goalId"] ? String(cmd["goalId"]) : null
     const agents      = Math.max(1, Math.min(20, Number(cmd["agents"] ?? 3)))
     const noAiPlan    = cmd["noAiPlan"] === true
     const modelWorker = cmd["modelWorker"] ? String(cmd["modelWorker"]) : null
 
-    if (!goalText && !goalId) {
-      this.broadcast({ type: "run.error", error: "goal cannot be empty" })
-      return
+    const sendError = (msg: string, tabId?: string) => {
+      const payload = JSON.stringify({ type: "run.error", error: msg, ...(tabId ? { tabId } : {}) })
+      try { originWs.send(payload) } catch { /* disconnected */ }
+      this.broadcast({ type: "run.error", error: msg, ...(tabId ? { tabId } : {}) })
     }
 
-    // Resolve goal
+    if (!goalText && !goalId) { sendError("Goal cannot be empty"); return }
+
+    // Resolve goal text
     const resolvedGoalText = goalText ||
-      this.goalStore.listGoals(this.projectPath, 50).find(g => g.id === goalId)?.text ||
-      ""
-    if (!resolvedGoalText) {
-      this.broadcast({ type: "run.error", error: "goal not found" })
-      return
-    }
+      this.goalStore.listGoals(this.projectPath, 50).find(g => g.id === goalId)?.text || ""
+    if (!resolvedGoalText) { sendError("Goal not found"); return }
 
     const finalGoalId = goalText
       ? this.goalStore.createGoal(goalText, this.projectPath)
@@ -254,7 +262,7 @@ export class StandaloneServer {
 
     // Allocate tabId and base port
     const tabId = this.nextTabId()
-    const nextBasePort = this.baseAgentPort + this.slots.size * 20  // 20 ports per tab
+    const nextBasePort = this.baseAgentPort + this.slots.size * 20
 
     // Build config
     const modelMap: Record<string, string> = {}
@@ -271,10 +279,10 @@ export class StandaloneServer {
       modelMap,
     })
 
-    // Notify client: tab created, status = planning
-    this.broadcast({ type: "server.state", ...this.serveState(), pendingTab: { tabId, goalText: resolvedGoalText } })
+    // ── Planning phase ───────────────────────────────────────────────────────
+    // Broadcast planning state to client BEFORE we block on AI planning
+    this.broadcast({ type: "run.planning", tabId, goalText: resolvedGoalText })
 
-    // Plan tasks
     let taskNodes
     try {
       if (noAiPlan) {
@@ -282,29 +290,26 @@ export class StandaloneServer {
       } else {
         try {
           taskNodes = (await aiGoalToTaskGraph(resolvedGoalText, this.projectPath)).nodes
-        } catch {
+        } catch (aiErr) {
+          // AI planner failed → fall back silently
           taskNodes = goalToTaskGraph(resolvedGoalText, this.projectPath).nodes
         }
       }
     } catch (err) {
-      this.broadcast({ type: "run.error", tabId, error: `Planning failed: ${(err as Error).message}` })
+      sendError(`Planning failed: ${(err as Error).message}`, tabId)
       return
     }
 
-    // Create Conductor
+    // ── Conductor setup ──────────────────────────────────────────────────────
     const conductor = new Conductor(config)
     await conductor.initialize()
     conductor.taskDag.addTasks(taskNodes)
-
-    // Register run in goals DB
     this.goalStore.upsertRunMeta(conductor.runId, finalGoalId, this.projectPath, agents)
 
-    // Create TabDashboard
     const dashboard = new TabDashboard(conductor, tabId, resolvedGoalText)
     dashboard.attachWss(this.wss)
-    dashboard.start()  // subscribes to conductor events, starts timers
+    dashboard.start()
 
-    // Register slot
     const slot: RunSlot = {
       tabId,
       runId: conductor.runId,
@@ -316,15 +321,23 @@ export class StandaloneServer {
       dashboard,
       cleanup: () => { dashboard.stop() },
     }
+    // Register slot BEFORE broadcasting server.state so the tab appears correctly
     this.slots.set(tabId, slot)
     this.broadcastServerState()
 
-    // Spawn agents + start scheduler
+    // Send initial snapshot for this tab so client can switch to it
+    try {
+      const snap = dashboard.buildSnapshotPublic()
+      this.broadcast({ type: "snapshot", tabId, ...snap })
+    } catch { /* ok */ }
+
+    // ── Spawn agents ─────────────────────────────────────────────────────────
     try {
       const roles = Array(Math.min(agents, taskNodes.length)).fill("general") as "general"[]
       await conductor.spawnAgents(roles)
     } catch (err) {
-      this.broadcast({ type: "run.error", tabId, error: `Agent spawn failed: ${(err as Error).message}` })
+      sendError(`Agent spawn failed: ${(err as Error).message}`, tabId)
+      slot.status = "failed"
       slot.cleanup()
       this.slots.delete(tabId)
       this.broadcastServerState()
@@ -333,10 +346,9 @@ export class StandaloneServer {
 
     conductor.startScheduler()
 
-    // Wait for completion (non-blocking — let WS events carry progress)
+    // Wait for completion (non-blocking)
     conductor.waitForCompletion(3_600_000).then(result => {
       slot.status = result === "completed" ? "completed" : "failed"
-      // Update goals DB
       let tokenTotal = 0, costUsd = 0
       try {
         const tk = conductor.store.tokenStats()
