@@ -216,7 +216,7 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   const webPort = webPortRaw ? parseInt(webPortRaw === "true" ? "9000" : webPortRaw) : null
   let webDash: WebDashboard | null = null
   if (webPort) {
-    webDash = new WebDashboard(conductor, webPort)
+    webDash = new WebDashboard(conductor, webPort, goal ?? "")
     webDash.start()
     console.log(`  ${C.cyan}Web dashboard → http://localhost:${webPort}${C.reset}`)
     console.log()

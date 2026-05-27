@@ -45,6 +45,7 @@ export class WebDashboard {
   constructor(
     private conductor: Conductor,
     private port: number,
+    private goal: string = "",
   ) {}
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
@@ -225,10 +226,13 @@ export class WebDashboard {
 
       if (next === "running" && task) {
         const agentId = task.assignedTo ?? taskId
+        // Try to pick up the model already stored in the agent instance
+        const agentMgr = (this.conductor as unknown as { agentMgr: { getInstance: (id: string) => { model: string | null } | undefined } }).agentMgr
+        const knownModel = agentMgr.getInstance(agentId)?.model ?? null
         this.agentSlots.set(agentId, {
           agentId, taskId, title: task.title, type: task.type,
           scope: task.scope, startedAt: Date.now(),
-          lastLine: "", model: null, tokenBuf: "",
+          lastLine: "", model: knownModel, tokenBuf: "",
         })
         this.pushLog(`⟳ [${task.type.slice(0, 3)}] ${task.title}`)
       }
@@ -254,6 +258,40 @@ export class WebDashboard {
 
     if (e.kind === "approval.required") {
       this.pushLog(`⏸ Approval required`)
+      // Push the real pending requests so client has actual ids
+      this.broadcast({
+        type: "approval.required",
+        requests: this.conductor.approvalGate.pendingRequests(),
+      })
+    } else if (e.kind === "run.completed" || e.kind === "run.failed") {
+      // Close the last open phase
+      const last = this.phaseHistory[this.phaseHistory.length - 1]
+      if (last && last.endMs === null) last.endMs = e.timestamp
+
+      // Build and broadcast final report
+      const allTasks = this.conductor.taskDag.allTasks()
+      const done   = allTasks.filter(t => t.status === "done")
+      const failed = allTasks.filter(t => t.status === "failed")
+      let tokenStats = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0, totalTokens: 0, cacheHitRate: 0 }
+      try { tokenStats = this.conductor.store.tokenStats() } catch { /* ok */ }
+      this.broadcast({
+        type: "run.finished",
+        result: e.kind === "run.completed" ? "completed" : "failed",
+        runId: this.conductor.runId,
+        tasks: { total: allTasks.length, done: done.length, failed: failed.length },
+        tokenStats,
+        phaseHistory: this.phaseHistory,
+        summaries: done.map(t => ({
+          id: t.id, title: t.title, type: t.type,
+          summary: t.output?.summary ?? "",
+          risks: t.output?.risks ?? [],
+          blockers: t.output?.blockers ?? [],
+          changes: t.output?.changes ?? [],
+          tokenUsage: t.tokenUsage ?? null,
+          durationMs: (t.startedAt && t.completedAt) ? t.completedAt - t.startedAt : null,
+        })),
+        errors: failed.map(t => ({ id: t.id, title: t.title, error: t.error })),
+      })
     }
 
     // Broadcast event to all connected clients
@@ -326,6 +364,7 @@ export class WebDashboard {
     try { tokenStats = this.conductor.store.tokenStats() } catch { /* ok */ }
     return {
       runId:        this.conductor.runId,
+      goal:         this.goal,
       phase:        this.conductor.taskDag.phase,
       status:       this.conductor.status(),
       tasks:        this.conductor.taskDag.allTasks(),
