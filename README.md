@@ -87,7 +87,15 @@ Deadlock check: clean ✓
 
 ### 2. 对真实项目运行
 
-#### 方式一：自然语言目标（最简单）
+#### 方式一：Web 界面（推荐）
+
+```bash
+swarm serve --port 9000 --project /path/to/your/project
+```
+
+浏览器自动打开 `http://localhost:9000`，在界面中输入 Goal、选择 agent 数量和模型，点击 **Start Run** 启动。支持多个 run 并发、历史回放、任务注入等。
+
+#### 方式二：命令行 + 自然语言目标
 
 ```bash
 swarm run --goal "分析项目结构，找出主要模块和潜在问题" \
@@ -96,7 +104,9 @@ swarm run --goal "分析项目结构，找出主要模块和潜在问题" \
           --auto-approve
 ```
 
-#### 方式二：YAML 任务文件（精确控制）
+> 如需同时打开浏览器 Dashboard，加上 `--web 9000` 参数。
+
+#### 方式三：YAML 任务文件（精确控制）
 
 ```bash
 swarm run --tasks example-tasks.yaml --auto-approve
@@ -161,8 +171,20 @@ swarm <command> [options]
 
 | 命令 | 说明 |
 |------|------|
+| `serve` | **常驻 Web 服务（推荐）**：浏览器全控，支持多 run 并发、历史回放 |
+| `run` | 命令行启动单次 run，终端实时 dashboard |
+| `start` | 交互式输入 Goal，自动开浏览器（`serve` + `run` 的结合） |
 | `demo` | 构建示例 DAG，验证架构（不启动真实 agent） |
-| `run` | 启动 live run，显示实时 dashboard |
+
+### `serve` 模式选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--port <n>` | `9000` | Web 服务监听端口 |
+| `--project <path>` | `cwd` | 目标项目目录 |
+| `--base-port <n>` | `8800` | agent 子进程端口起始值 |
+
+### `run` 模式选项
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
@@ -172,9 +194,22 @@ swarm <command> [options]
 | `--agents <n>` | `5` | 最大并发 agent 数量（上限 20） |
 | `--auto-approve` | `false` | 自动批准所有 tool call（跳过人工审批） |
 | `--no-interact` | `false` | 全自动模式，任务完成后不暂停等待输入 |
+| `--web [port]` | — | 同时开启 Web Dashboard（默认端口 9000） |
 | `--output <path>` | `.conductor/report-<id>.json` | JSON 报告保存路径 |
 | `--dynamic-tasks false` | `true` | 关闭动态任务生成 |
+| `--model-worker <model>` | — | 所有 agent 使用同一模型（如 `deepseek-v3`） |
+| `--no-ai-plan` | `false` | 跳过 AI 规划，使用内置静态任务模板 |
 | `--bin <path>` | `codewhale` | CodeWhale 二进制路径 |
+
+### 命令对比
+
+| | `serve` | `run` | `run --web` |
+|---|---|---|---|
+| 界面 | 浏览器 | 终端 TUI | 终端 + 浏览器 |
+| 多 run 并发 | ✅ | ❌ | ❌ |
+| 历史回放 | ✅ | ❌ | ❌ |
+| 脚本/自动化 | ❌ | ✅ | ✅ |
+| 推荐场景 | 日常使用 | CI / 脚本 | 调试
 
 ---
 
