@@ -33,6 +33,8 @@ export class AgentProcessManager {
 
     // Pass only the env vars codewhale actually needs.
     // Never forward arbitrary secrets from the parent environment.
+    // stdout/stderr must be "ignore" (not "pipe") — codewhale-tui is a Ratatui
+    // program that exits immediately when isatty() returns false (piped fd).
     const proc = spawn({
       cmd: [
         this.config.codewhalebin,
@@ -42,8 +44,8 @@ export class AgentProcessManager {
         "--insecure",
       ],
       cwd: this.config.projectPath,
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "ignore",
+      stderr: "ignore",
       env: this.safeEnv(),
     })
 
@@ -55,7 +57,7 @@ export class AgentProcessManager {
     this.clients.set(id, client)
 
     try {
-      await client.waitUntilReady(30_000)
+      await client.waitUntilReady(90_000)  // codewhale needs ~20s to start in spawned env
       instance.status = "idle"
     } catch (err) {
       instance.status = "crashed"
@@ -137,8 +139,8 @@ export class AgentProcessManager {
         "--insecure",
       ],
       cwd: this.config.projectPath,
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "ignore",
+      stderr: "ignore",
       env: this.safeEnv(),
     })
 
@@ -148,7 +150,7 @@ export class AgentProcessManager {
     const client = new CodeWhaleClient(inst.port)
     this.clients.set(agentId, client)
 
-    await client.waitUntilReady(30_000)
+    await client.waitUntilReady(90_000)  // codewhale needs ~20s to start in spawned env
     inst.status = "idle"
   }
 
