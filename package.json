@@ -5,8 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/cli/index.ts",
-    "build": "bun build src/cli/index.ts --outdir dist --target node",
-    "typecheck": "tsc --noEmit",
+    "dev:serve": "bun run src/cli/index.ts serve --port 9000 --project .",
+    "dev:ui": "cd web-ui && bun run dev",
+    "build:ui": "cd web-ui && bun run build",
+    "build": "bun run build:ui && bun build src/cli/index.ts --outdir dist --target node",
+    "build:bin": "bun run build:ui && bun build --compile --minify src/cli/index.ts --outfile dist/swarm-conductor",
+    "typecheck": "tsc --noEmit && cd web-ui && bun run typecheck",
+    "typecheck:backend": "tsc --noEmit",
+    "typecheck:frontend": "cd web-ui && bun run typecheck",
     "test": "bun test",
     "bench": "bun run src/bench/run-benchmark.ts"
   },

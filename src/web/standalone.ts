@@ -7,8 +7,7 @@ import { aiGoalToTaskGraph } from "../cli/ai-planner"
 import { goalToTaskGraph } from "../cli/goal-planner"
 import { WarmPool } from "../runtime/warm-pool"
 import { AgentProcessManager } from "../runtime/agent-manager"
-// Embed ui.html at compile time so the binary is fully self-contained
-import UI_HTML from "./ui.html" with { type: "text" }
+import { UI_HTML } from "./assets"
 import { mkdirSync } from "fs"
 import { join } from "path"
 

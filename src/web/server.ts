@@ -1,8 +1,7 @@
 import type { Conductor } from "../conductor"
 import type { ConductorEvent, TaskNode } from "../dag/types"
 import { createTaskNode } from "../dag/engine"
-// Embed ui.html at compile time so the binary is fully self-contained
-import UI_HTML from "./ui.html" with { type: "text" }
+import { UI_HTML } from "./assets"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

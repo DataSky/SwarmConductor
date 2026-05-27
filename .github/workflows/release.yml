@@ -24,6 +24,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Install web-ui dependencies
+        run: cd web-ui && bun install
+
+      - name: Build web-ui
+        run: bun run build:ui
+
       - name: Run tests
         run: bun test tests/dag.test.ts tests/m3-unit.test.ts tests/store.test.ts tests/git-workspace.test.ts
 
