@@ -72,6 +72,19 @@ export class CrashRecovery {
       } else if (alive) {
         // Refresh heartbeat
         this.agentMgr.heartbeat(agent.id)
+
+        // Secondary check: process is alive but the turn may be stuck
+        // (e.g., waiting on a tool that never returns). If the task has been
+        // running longer than 2× the file-lock TTL with no delta, interrupt it.
+        if (agent.status === "busy" && agent.threadId && agent.currentTaskId) {
+          const task = this.dag.getTask(agent.currentTaskId)
+          const taskAge = task?.startedAt ? now - task.startedAt : 0
+          const stuckThreshold = this.config.fileLockTtlMs * 2
+          if (taskAge > stuckThreshold) {
+            console.warn(`[recovery] Agent ${agent.id} turn appears stuck (${Math.round(taskAge / 1000)}s), interrupting`)
+            await client.interruptThread(agent.threadId).catch(() => {})
+          }
+        }
       }
     }
   }

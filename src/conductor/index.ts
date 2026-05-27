@@ -10,6 +10,71 @@ import { generateFollowupTasks } from "./dynamic-tasks"
 import { join } from "path"
 import { mkdirSync, existsSync, readFileSync } from "fs"
 
+// ─── Structured agent instruction protocol ────────────────────────────────────
+// Each sub-agent receives a prompt with clearly delimited sections so the model
+// knows exactly: what its role is, what context it inherits, what it must produce.
+
+const MAX_CONTEXT_CHARS = 8_000   // cap inherited context to avoid prompt bloat
+const MAX_OUTPUT_CHARS  = 80_000  // truncate runaway output before parsing
+
+interface PromptParts {
+  task: import("../dag/types").TaskNode
+  agentInstructions: string
+  projectMapBlock: string
+  contextBlock: string
+}
+
+function buildAgentPrompt(p: PromptParts): string {
+  const { task, agentInstructions, projectMapBlock, contextBlock } = p
+
+  // Trim inherited context to avoid unbounded prompt growth
+  const safeContext = contextBlock.length > MAX_CONTEXT_CHARS
+    ? contextBlock.slice(0, MAX_CONTEXT_CHARS) + "\n[…context truncated…]"
+    : contextBlock
+
+  return [
+    // ── Section 1: Identity ────────────────────────────────────────────────
+    `<agent_role>`,
+    `You are a software-engineering agent with role: ${task.role}.`,
+    `Task type: ${task.type} | Priority: ${task.priority}`,
+    `Task ID: ${task.id}`,
+    `</agent_role>`,
+    ``,
+    // ── Section 2: Task instruction ────────────────────────────────────────
+    `<task_instruction>`,
+    task.prompt,
+    `</task_instruction>`,
+    ``,
+    // ── Section 3: Scope (files/modules you may touch) ─────────────────────
+    task.scope.length > 0
+      ? [`<scope>`, ...task.scope.map(s => `  - ${s}`), `</scope>`, ``].join("\n")
+      : "",
+    // ── Section 4: Inherited context from prior agents ─────────────────────
+    safeContext
+      ? [`<inherited_context>`, safeContext.trim(), `</inherited_context>`, ``].join("\n")
+      : "",
+    // ── Section 5: Project map ─────────────────────────────────────────────
+    projectMapBlock
+      ? [`<project_map>`, projectMapBlock.trim(), `</project_map>`, ``].join("\n")
+      : "",
+    // ── Section 6: Project-level agent instructions ────────────────────────
+    agentInstructions
+      ? [`<project_instructions>`, agentInstructions.trim(), `</project_instructions>`, ``].join("\n")
+      : "",
+    // ── Section 7: Required output contract ───────────────────────────────
+    `<output_contract>`,
+    `Your response MUST contain exactly these five sections in order:`,
+    `## SUMMARY      — 2-5 sentence summary of what you did`,
+    `## CHANGES      — bullet list: "- path/to/file: what changed"`,
+    `## EVIDENCE     — concrete evidence (test output, grep, file diff snippets)`,
+    `## RISKS        — risks, label severity: [low|medium|high|critical]`,
+    `## BLOCKERS     — unresolved blockers that downstream tasks must know about`,
+    ``,
+    `Do NOT omit any section. If a section has nothing to report, write "none".`,
+    `</output_contract>`,
+  ].filter(Boolean).join("\n")
+}
+
 // ─── Output parser ────────────────────────────────────────────────────────────
 
 function parseTaskOutput(rawText: string): TaskOutput {
@@ -198,13 +263,12 @@ export class Conductor {
     const projectMap = this.store.getProjectMap()
     const projectMapBlock = projectMap ? `\n\n## Project Map\n${projectMap.content}` : ""
 
-    const fullPrompt = [
-      task.prompt,
-      this.agentInstructions,
+    const fullPrompt = buildAgentPrompt({
+      task,
+      agentInstructions: this.agentInstructions,
       projectMapBlock,
       contextBlock,
-      "\n\n---\nYour output MUST contain these 5 sections: ## SUMMARY, ## CHANGES, ## EVIDENCE, ## RISKS, ## BLOCKERS",
-    ].join("")
+    })
 
     // Mark busy synchronously before any await to prevent double-dispatch
     // within the same scheduler tick.
@@ -221,7 +285,7 @@ export class Conductor {
         fork_context: task.forkContext,
       })
 
-      const { fullText, status, usage } = await client.waitForTurn(
+      const { fullText: rawText, status, usage } = await client.waitForTurn(
         thread.id, turn.id,
         this.streamListeners.length > 0
           ? (delta) => { for (const cb of this.streamListeners) cb(agentId, task, delta) }
@@ -233,6 +297,11 @@ export class Conductor {
         this.dag.fail(task.id, `Turn ended with status: ${status}`)
         return
       }
+
+      // Guard against runaway output that would explode the parser / memory
+      const fullText = rawText.length > MAX_OUTPUT_CHARS
+        ? rawText.slice(0, MAX_OUTPUT_CHARS) + "\n[output truncated by conductor]"
+        : rawText
 
       const output = parseTaskOutput(fullText)
       // Attach token usage to the task before completing

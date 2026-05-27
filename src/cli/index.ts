@@ -7,6 +7,7 @@ import { writeFileSync } from "fs"
 import { join } from "path"
 import { loadTaskFile } from "./task-file"
 import { goalToTaskGraph } from "./goal-planner"
+import { aiGoalToTaskGraph, PRIMARY_PLANNER_MODEL } from "./ai-planner"
 import { InteractiveRunner } from "./interactive"
 import { LiveView, type VerboseLevel } from "./live-view"
 
@@ -220,9 +221,24 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
     if (result.agents && !flags["agents"]) config.maxConcurrentAgents = result.agents
     if (result.autoApprove !== null && !flags["auto-approve"]) config.autoApprove = result.autoApprove
   } else {
-    const result = goalToTaskGraph(goal!, config.projectPath)
-    taskNodes = result.nodes
-    preamble = `Goal: ${goal}\n\n${result.description}`
+    const noAiPlan = flags["no-ai-plan"] === "true"
+    if (noAiPlan) {
+      const result = goalToTaskGraph(goal!, config.projectPath)
+      taskNodes = result.nodes
+      preamble = `Goal: ${goal}\n\n${result.description}`
+    } else {
+      console.log(`Planning with AI (${PRIMARY_PLANNER_MODEL})…`)
+      try {
+        const result = await aiGoalToTaskGraph(goal!, config.projectPath)
+        taskNodes = result.nodes
+        preamble = `Goal: ${goal}\n\n${result.description}`
+      } catch (err) {
+        console.error(`AI planner failed, falling back to static template: ${(err as Error).message}`)
+        const result = goalToTaskGraph(goal!, config.projectPath)
+        taskNodes = result.nodes
+        preamble = `Goal: ${goal}\n\n${result.description}`
+      }
+    }
   }
 
   if (preamble) {
@@ -290,6 +306,7 @@ function printHelp(): void {
   console.log(`  --quiet                只显示任务完成一行（无摘要）`)
   console.log(`  --stream               显示完整 token 流（调试用）`)
   console.log(`  --output <path>        JSON 报告保存路径`)
+  console.log(`  --no-ai-plan           跳过 AI 规划，使用内置静态任务模板`)
   console.log(`  --dynamic-tasks false  关闭动态任务生成`)
   console.log(`  --bin <path>           CodeWhale 二进制路径`)
   console.log()
