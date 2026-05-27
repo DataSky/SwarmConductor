@@ -973,7 +973,7 @@ function renderLog() {
   const body = document.getElementById('log-body')
   body.innerHTML = ''
   for (const line of state.log) {
-    appendLogLine(line)
+    body.appendChild(appendLogLine(line))
   }
   body.scrollTop = body.scrollHeight
 }
