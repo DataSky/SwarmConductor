@@ -18,10 +18,11 @@ interface RunSlot {
   goalId:     string
   goalText:   string
   agents:     number
+  basePort:   number
   status:     "planning" | "running" | "completed" | "failed"
   conductor:  Conductor
-  dashboard:  TabDashboard   // per-tab WS broadcaster
-  cleanup:    () => void     // stop timers
+  dashboard:  TabDashboard
+  cleanup:    () => void
 }
 
 // ─── ANSI stripper (unused directly but kept for future log use) ──────────────
@@ -64,10 +65,12 @@ class TabDashboard extends WebDashboard {
 // ─── StandaloneServer ─────────────────────────────────────────────────────────
 
 export class StandaloneServer {
-  private wss      = new Set<import("bun").ServerWebSocket<unknown>>()
-  private slots    = new Map<string, RunSlot>()  // tabId → RunSlot
+  private wss       = new Set<import("bun").ServerWebSocket<unknown>>()
+  private slots     = new Map<string, RunSlot>()  // tabId → RunSlot
   private goalStore: GoalStore
   private server: ReturnType<typeof Bun.serve> | null = null
+  // Port pool: each run gets 20 ports; released when run ends
+  private usedPortBlocks = new Set<number>()  // block indices in use
 
   constructor(
     private projectPath: string,
@@ -79,7 +82,26 @@ export class StandaloneServer {
     this.goalStore = new GoalStore(conductorDir)
   }
 
+  private allocatePortBlock(): number {
+    for (let i = 0; i < 50; i++) {
+      if (!this.usedPortBlocks.has(i)) {
+        this.usedPortBlocks.add(i)
+        return this.baseAgentPort + i * 20
+      }
+    }
+    throw new Error("No available port blocks (max 50 concurrent runs)")
+  }
+
+  private releasePortBlock(basePort: number): void {
+    const idx = (basePort - this.baseAgentPort) / 20
+    this.usedPortBlocks.delete(idx)
+  }
+
   start(): void {
+    // Mark stale running rows from previous crashed sessions
+    const stale = this.goalStore.reconcileStaleRuns()
+    if (stale > 0) console.log(`  [goals.db] marked ${stale} stale run(s) as interrupted`)
+
     const self = this
     this.server = Bun.serve({
       port: this.port,
@@ -128,7 +150,82 @@ export class StandaloneServer {
     if (url.pathname === "/api/server/state") {
       return json(this.serveState())
     }
+    // Replay a completed run from its conductor.db
+    const replayMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/replay$/)
+    if (replayMatch) {
+      return this.handleReplay(replayMatch[1]!, json)
+    }
     return new Response("Not found", { status: 404 })
+  }
+
+  private handleReplay(
+    runId: string,
+    json: (data: unknown) => Response,
+  ): Response {
+    const meta = this.goalStore.getRunMeta(runId)
+    if (!meta) return new Response("Run not found", { status: 404 })
+    if (!meta.conductorDir) return new Response("No conductor data for this run", { status: 404 })
+
+    const dbPath = join(meta.conductorDir, "conductor.db")
+    try {
+      const { Database } = require("bun:sqlite") as typeof import("bun:sqlite")
+      const db = new Database(dbPath, { readonly: true })
+
+      // Load tasks
+      const tasks = (db.prepare(`SELECT * FROM tasks WHERE run_id=?`).all(runId) as Record<string,unknown>[])
+        .map(r => ({
+          id: r["id"], type: r["type"], title: r["title"], status: r["status"],
+          priority: r["priority"], role: r["role"],
+          scope: JSON.parse(r["scope"] as string),
+          dependsOn: JSON.parse(r["depends_on"] as string),
+          output: r["output"] ? JSON.parse(r["output"] as string) : null,
+          error: r["error"] ?? null,
+          createdAt: r["created_at"], startedAt: r["started_at"] ?? null,
+          completedAt: r["completed_at"] ?? null,
+          tokenUsage: r["token_usage"] ? JSON.parse(r["token_usage"] as string) : null,
+        }))
+
+      // Load recent events as log lines
+      const events = (db.prepare(
+        `SELECT kind, payload, timestamp FROM event_log WHERE run_id=? ORDER BY id DESC LIMIT 300`
+      ).all(runId) as Record<string,unknown>[]).reverse()
+      const log = events.map(e => {
+        const p = JSON.parse(e["payload"] as string) as Record<string,unknown>
+        const ts = new Date(e["timestamp"] as number).toLocaleTimeString("en-GB", {hour12:false})
+        const title = p["title"] as string ?? ""
+        return `${ts}  [${e["kind"]}]${title ? " " + title : ""}`
+      })
+
+      // Token stats from tasks
+      let inputTokens = 0, outputTokens = 0, cacheHitTokens = 0, cacheMissTokens = 0
+      for (const t of tasks) {
+        if (t.tokenUsage) {
+          inputTokens     += (t.tokenUsage as any).inputTokens ?? 0
+          outputTokens    += (t.tokenUsage as any).outputTokens ?? 0
+          cacheHitTokens  += (t.tokenUsage as any).cacheHitTokens ?? 0
+          cacheMissTokens += (t.tokenUsage as any).cacheMissTokens ?? 0
+        }
+      }
+      const totalTokens = inputTokens + outputTokens
+      const cacheHitRate = inputTokens > 0 ? Math.round(cacheHitTokens / inputTokens * 100) : 0
+
+      db.close()
+
+      return json({
+        runId,
+        goalText: meta.goalText ?? "",
+        status: meta.status,
+        createdAt: meta.createdAt,
+        finishedAt: meta.finishedAt,
+        agents: meta.agents,
+        tasks,
+        log,
+        tokenStats: { inputTokens, outputTokens, cacheHitTokens, cacheMissTokens, totalTokens, cacheHitRate },
+        costUsd: meta.costUsd,
+      })
+    } catch (err) {
+      return new Response(`Failed to read run data: ${(err as Error).message}`, { status: 500 })
+    }
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -176,6 +273,7 @@ export class StandaloneServer {
         if (slot) {
           slot.conductor.shutdown().catch(() => {})
           slot.cleanup()
+          this.releasePortBlock(slot.basePort)
           this.slots.delete(tabId)
           this.broadcastServerState()
         }
@@ -262,7 +360,7 @@ export class StandaloneServer {
 
     // Allocate tabId and base port
     const tabId = this.nextTabId()
-    const nextBasePort = this.baseAgentPort + this.slots.size * 20
+    const nextBasePort = this.allocatePortBlock()
 
     // Build config
     const modelMap: Record<string, string> = {}
@@ -304,7 +402,9 @@ export class StandaloneServer {
     const conductor = new Conductor(config)
     await conductor.initialize()
     conductor.taskDag.addTasks(taskNodes)
-    this.goalStore.upsertRunMeta(conductor.runId, finalGoalId, this.projectPath, agents)
+    // conductor_dir points to the shared .conductor directory
+    const conductorDir = join(this.projectPath, ".conductor")
+    this.goalStore.upsertRunMeta(conductor.runId, finalGoalId, this.projectPath, agents, conductorDir)
 
     const dashboard = new TabDashboard(conductor, tabId, resolvedGoalText)
     dashboard.attachWss(this.wss)
@@ -316,6 +416,7 @@ export class StandaloneServer {
       goalId: finalGoalId,
       goalText: resolvedGoalText,
       agents,
+      basePort: nextBasePort,
       status: "running",
       conductor,
       dashboard,
@@ -339,6 +440,7 @@ export class StandaloneServer {
       sendError(`Agent spawn failed: ${(err as Error).message}`, tabId)
       slot.status = "failed"
       slot.cleanup()
+      this.releasePortBlock(nextBasePort)
       this.slots.delete(tabId)
       this.broadcastServerState()
       return
@@ -356,6 +458,7 @@ export class StandaloneServer {
         costUsd = (tk.inputTokens * 15 + tk.outputTokens * 75) / 1_000_000
       } catch { /* ok */ }
       this.goalStore.finishRunMeta(conductor.runId, slot.status, tokenTotal, costUsd)
+      this.releasePortBlock(nextBasePort)
       this.broadcastServerState()
       conductor.shutdown().catch(() => {})
     })

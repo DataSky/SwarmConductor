@@ -12,16 +12,17 @@ export interface GoalRecord {
 }
 
 export interface RunMetaRecord {
-  id:         string
-  goalId:     string
-  goalText?:  string  // joined from goals table
-  project:    string
-  agents:     number
-  status:     "running" | "completed" | "failed" | "interrupted"
-  createdAt:  number
-  finishedAt: number | null
-  tokenTotal: number
-  costUsd:    number
+  id:           string
+  goalId:       string
+  goalText?:    string
+  project:      string
+  agents:       number
+  status:       "running" | "completed" | "failed" | "interrupted"
+  createdAt:    number
+  finishedAt:   number | null
+  tokenTotal:   number
+  costUsd:      number
+  conductorDir: string | null
 }
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -40,15 +41,16 @@ CREATE TABLE IF NOT EXISTS goals (
 CREATE INDEX IF NOT EXISTS idx_goals_project ON goals(project, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS run_meta (
-  id          TEXT PRIMARY KEY,
-  goal_id     TEXT NOT NULL REFERENCES goals(id),
-  project     TEXT NOT NULL,
-  agents      INTEGER NOT NULL DEFAULT 3,
-  status      TEXT NOT NULL DEFAULT 'running',
-  created_at  INTEGER NOT NULL,
-  finished_at INTEGER,
-  token_total INTEGER NOT NULL DEFAULT 0,
-  cost_usd    REAL NOT NULL DEFAULT 0
+  id            TEXT PRIMARY KEY,
+  goal_id       TEXT NOT NULL REFERENCES goals(id),
+  project       TEXT NOT NULL,
+  agents        INTEGER NOT NULL DEFAULT 3,
+  status        TEXT NOT NULL DEFAULT 'running',
+  created_at    INTEGER NOT NULL,
+  finished_at   INTEGER,
+  token_total   INTEGER NOT NULL DEFAULT 0,
+  cost_usd      REAL NOT NULL DEFAULT 0,
+  conductor_dir TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_run_meta_goal   ON run_meta(goal_id);
 CREATE INDEX IF NOT EXISTS idx_run_meta_project ON run_meta(project, created_at DESC);
@@ -87,11 +89,11 @@ export class GoalStore {
   }
 
   /** Insert or update a run record. */
-  upsertRunMeta(runId: string, goalId: string, project: string, agents: number): void {
+  upsertRunMeta(runId: string, goalId: string, project: string, agents: number, conductorDir: string): void {
     this.db.prepare(
-      `INSERT OR REPLACE INTO run_meta (id, goal_id, project, agents, status, created_at)
-       VALUES ($id, $goalId, $project, $agents, 'running', $now)`
-    ).run({ $id: runId, $goalId: goalId, $project: project, $agents: agents, $now: Date.now() })
+      `INSERT OR REPLACE INTO run_meta (id, goal_id, project, agents, status, created_at, conductor_dir)
+       VALUES ($id, $goalId, $project, $agents, 'running', $now, $dir)`
+    ).run({ $id: runId, $goalId: goalId, $project: project, $agents: agents, $now: Date.now(), $dir: conductorDir })
   }
 
   /** Mark a run as finished with final stats. */
@@ -114,17 +116,48 @@ export class GoalStore {
     params.push(limit)
 
     return (this.db.prepare(sql).all(...(params as import("bun:sqlite").SQLQueryBindings[])) as Record<string, unknown>[]).map(r => ({
-      id:         r["id"] as string,
-      goalId:     r["goal_id"] as string,
-      goalText:   r["goal_text"] as string | undefined,
-      project:    r["project"] as string,
-      agents:     r["agents"] as number,
-      status:     r["status"] as RunMetaRecord["status"],
-      createdAt:  r["created_at"] as number,
-      finishedAt: r["finished_at"] as number | null,
-      tokenTotal: r["token_total"] as number,
-      costUsd:    r["cost_usd"] as number,
+      id:           r["id"] as string,
+      goalId:       r["goal_id"] as string,
+      goalText:     r["goal_text"] as string | undefined,
+      project:      r["project"] as string,
+      agents:       r["agents"] as number,
+      status:       r["status"] as RunMetaRecord["status"],
+      createdAt:    r["created_at"] as number,
+      finishedAt:   r["finished_at"] as number | null,
+      tokenTotal:   r["token_total"] as number,
+      costUsd:      r["cost_usd"] as number,
+      conductorDir: r["conductor_dir"] as string | null,
     }))
+  }
+
+  /** On server startup, mark any rows still 'running' as 'interrupted' (stale from crashed session). */
+  reconcileStaleRuns(): number {
+    const result = this.db.prepare(
+      `UPDATE run_meta SET status='interrupted', finished_at=$now WHERE status='running'`
+    ).run({ $now: Date.now() })
+    return result.changes
+  }
+
+  /** Return a single run by id (for replay). */
+  getRunMeta(runId: string): RunMetaRecord | null {
+    const sql = `SELECT r.*, g.text as goal_text
+                 FROM run_meta r JOIN goals g ON r.goal_id = g.id
+                 WHERE r.id = $id`
+    const r = this.db.prepare(sql).get({ $id: runId }) as Record<string, unknown> | null
+    if (!r) return null
+    return {
+      id:           r["id"] as string,
+      goalId:       r["goal_id"] as string,
+      goalText:     r["goal_text"] as string | undefined,
+      project:      r["project"] as string,
+      agents:       r["agents"] as number,
+      status:       r["status"] as RunMetaRecord["status"],
+      createdAt:    r["created_at"] as number,
+      finishedAt:   r["finished_at"] as number | null,
+      tokenTotal:   r["token_total"] as number,
+      costUsd:      r["cost_usd"] as number,
+      conductorDir: r["conductor_dir"] as string | null,
+    }
   }
 
   close(): void { this.db.close() }

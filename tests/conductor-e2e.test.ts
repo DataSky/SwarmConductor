@@ -31,11 +31,23 @@ function makeConfig(overrides = {}) {
 let conductor: Conductor | null = null
 
 afterEach(async () => {
-  if (conductor) {
-    await conductor.shutdown()
+  try {
+    if (conductor) {
+      // Wrap shutdown with a timeout to prevent hanging afterEach.
+      // shutdown() internally waits up to 30s for in-flight dispatches,
+      // so we give it a total budget of 10s here — if it hasn't finished
+      // by then we force-cleanup. Temporary files are removed below regardless.
+      await Promise.race([
+        conductor.shutdown(),
+        new Promise(r => setTimeout(r, 10_000)),
+      ])
+    }
+  } catch {
+    // Ignore shutdown errors — cleanup must still happen
+  } finally {
     conductor = null
+    rmSync(TMP_DIR, { recursive: true, force: true })
   }
-  rmSync(TMP_DIR, { recursive: true, force: true })
 })
 
 describe("Conductor end-to-end", () => {

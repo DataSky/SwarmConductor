@@ -78,25 +78,41 @@ function buildAgentPrompt(p: PromptParts): string {
 // ─── Output parser ────────────────────────────────────────────────────────────
 
 function parseTaskOutput(rawText: string): TaskOutput {
+  /** Escape regex specials in section name so future additions are safe. */
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
   const extract = (section: string): string => {
-    const re = new RegExp(`##\\s*${section}[\\s\\S]*?(?=\\n##|$)`, "i")
+    // Match a ## SECTION header and capture everything until the next ## header
+    // (preceded by optional \r?\n) or end-of-string. Using \r?\n handles Windows
+    // line endings and prevents runaway matches when header separators are missing.
+    const re = new RegExp(`##\\s*${esc(section)}\\b[\\s\\S]*?(?=\\r?\\n##|$)`, "i")
     const m = rawText.match(re)
-    return m ? m[0].replace(/^##\s*\w+\s*/i, "").trim() : ""
+    return m ? m[0].replace(/^##\s*\S+\s*/i, "").trim() : ""
   }
+
+  /** Split by newlines and drop empty / stub lines. Also drops the literal "none"
+   *  placeholder that the output contract asks agents to use for empty sections. */
+  const lines = (section: string): string[] =>
+    extract(section)
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => l.length > 0 && l.toLowerCase() !== "none" && l !== "五段")
+
   const changesText = extract("CHANGES")
   const changes = changesText
-    .split("\n")
+    .split(/\r?\n/)
     .filter(l => l.match(/^[-*]\s/))
     .map(l => {
       const [file, ...desc] = l.replace(/^[-*]\s/, "").split(":")
       return { file: (file ?? "").trim(), description: desc.join(":").trim() }
     })
+
   return {
-    summary: extract("SUMMARY"),
+    summary: extract("SUMMARY").toLowerCase() === "none" ? "" : extract("SUMMARY"),
     changes,
-    evidence: extract("EVIDENCE").split("\n").filter(Boolean),
-    risks: extract("RISKS").split("\n").filter(Boolean),
-    blockers: extract("BLOCKERS").split("\n").filter(Boolean),
+    evidence: lines("EVIDENCE"),
+    risks: lines("RISKS"),
+    blockers: lines("BLOCKERS"),
     rawText,
   }
 }
