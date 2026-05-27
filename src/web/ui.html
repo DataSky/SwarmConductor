@@ -1288,6 +1288,11 @@ function submitLaunch() {
     errEl.style.display = 'block'
     return
   }
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    errEl.textContent = 'Not connected to server — please wait and retry'
+    errEl.style.display = 'block'
+    return
+  }
   errEl.style.display = 'none'
   btn.disabled = true
   btn.textContent = '⏳ Planning…'
@@ -1485,6 +1490,9 @@ function connect() {
     setConnStatus('reconnect')
     reconnectTimer = setTimeout(connect, reconnectDelay)
     reconnectDelay = Math.min(reconnectDelay * 2, 10000)
+    // Reset start button if it was stuck in planning state during disconnect
+    const btn = document.getElementById('launch-start-btn')
+    if (btn && btn.disabled) { btn.disabled = false; btn.textContent = '▶ Start Run' }
   }
 
   ws.onerror = () => ws.close()
