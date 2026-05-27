@@ -11,6 +11,10 @@ import type { TaskNode, TaskOutput } from "../dag/types"
 
 const RISK_HIGH_RE = /\b(critical|high|severe|security|data loss|breaking)\b/i
 
+/** Chinese-language stub phrases that non-English agents sometimes produce
+ *  instead of "none" in the output contract sections. */
+const CHINESE_STUB_RE = /^五[个]?[节段](落|章)?[。.]?$/
+
 export interface DynamicInsertionResult {
   inserted: TaskNode[]
   skipped: number
@@ -27,8 +31,8 @@ export function generateFollowupTasks(
   // ── Blockers → implement tasks ───────────────────────────────────────────
   for (const blocker of output.blockers) {
     const trimmed = blocker.replace(/^[-*\s]+/, "").trim()
-    // Skip empty strings and the "none" placeholder from the output contract
-    if (!trimmed || /^none$/i.test(trimmed) || trimmed === "五段") continue
+    // Skip empty strings, the "none" placeholder, and Chinese-language stubs
+    if (!trimmed || /^none$/i.test(trimmed) || CHINESE_STUB_RE.test(trimmed)) continue
 
     const title = `Fix: ${trimmed.slice(0, 80)}`
     if (existingTitles.has(title)) { skipped++; continue }
@@ -53,8 +57,8 @@ export function generateFollowupTasks(
   for (const risk of output.risks) {
     if (!RISK_HIGH_RE.test(risk)) continue
     const trimmed = risk.replace(/^[-*\s]+/, "").trim()
-    // Skip empty strings and the "none" placeholder from the output contract
-    if (!trimmed || /^none$/i.test(trimmed) || trimmed === "五段") continue
+    // Skip empty strings, the "none" placeholder, and Chinese-language stubs
+    if (!trimmed || /^none$/i.test(trimmed) || CHINESE_STUB_RE.test(trimmed)) continue
 
     const title = `Review risk: ${trimmed.slice(0, 60)}`
     if (existingTitles.has(title)) { skipped++; continue }

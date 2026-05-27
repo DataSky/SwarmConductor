@@ -77,7 +77,7 @@ function buildAgentPrompt(p: PromptParts): string {
 
 // ─── Output parser ────────────────────────────────────────────────────────────
 
-function parseTaskOutput(rawText: string): TaskOutput {
+export function parseTaskOutput(rawText: string): TaskOutput {
   /** Escape regex specials in section name so future additions are safe. */
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
@@ -91,12 +91,19 @@ function parseTaskOutput(rawText: string): TaskOutput {
   }
 
   /** Split by newlines and drop empty / stub lines. Also drops the literal "none"
-   *  placeholder that the output contract asks agents to use for empty sections. */
+   *  placeholder that the output contract asks agents to use for empty sections,
+   *  as well as Chinese-language stub phrases (五段, 五个节。, etc.) that non-English
+   *  agents sometimes produce instead of "none". */
+  const CHINESE_STUB_RE = /^五[个]?[节段](落|章)?[。.]?$/
   const lines = (section: string): string[] =>
     extract(section)
       .split(/\r?\n/)
       .map(l => l.trim())
-      .filter(l => l.length > 0 && l.toLowerCase() !== "none" && l !== "五段")
+      .filter(l =>
+        l.length > 0 &&
+        l.toLowerCase() !== "none" &&
+        !CHINESE_STUB_RE.test(l)
+      )
 
   const changesText = extract("CHANGES")
   const changes = changesText
@@ -107,8 +114,9 @@ function parseTaskOutput(rawText: string): TaskOutput {
       return { file: (file ?? "").trim(), description: desc.join(":").trim() }
     })
 
+  const summaryRaw = extract("SUMMARY")
   return {
-    summary: extract("SUMMARY").toLowerCase() === "none" ? "" : extract("SUMMARY"),
+    summary: summaryRaw.toLowerCase() === "none" ? "" : summaryRaw,
     changes,
     evidence: lines("EVIDENCE"),
     risks: lines("RISKS"),

@@ -1032,7 +1032,14 @@ body {
   </div>
 </div>
 
-<!-- Run finished banner -->
+<!-- Replay mode banner -->
+<div id="replay-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:190;
+     background:rgba(88,166,255,0.12);border-bottom:1px solid rgba(88,166,255,0.3);
+     padding:6px 16px;align-items:center;gap:10px;font-size:12px;color:var(--cyan)">
+  🔁 <strong>REPLAY MODE</strong> — Read-only view of a completed run
+  <button class="btn" style="margin-left:auto;font-size:11px;padding:2px 10px"
+    onclick="closeReplay()">✕ Close Replay</button>
+</div>
 <div id="run-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:200;
      background:var(--bg2);border-bottom:2px solid var(--border);padding:10px 20px;
      display:none;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1090,12 +1097,14 @@ const state = {
   finalReport:  null,
 
   // ── Serve-mode multi-run ──────────────────────────────────────────────────
-  serveMode:    false,    // true when connected to StandaloneServer
-  activeTabId:  null,     // currently viewed run tab
-  tabs:         [],       // [{tabId, runId, goalId, goalText, agents, status}]
-  recentGoals:  [],       // GoalRecord[]
-  tabStates:    {},       // tabId → {tasks,agents,status,...} per-tab clone of state
-}
+  serveMode:    false,
+  activeTabId:  null,
+  tabs:         [],
+  recentGoals:  [],
+  tabStates:    {},
+  activeTab:    'log',
+  finalReport:  null,
+  replayMode:   false,    // true when viewing a completed historical run
 
 // ── Serve-mode: Tab management ────────────────────────────────────────────────
 
@@ -1115,13 +1124,6 @@ function applyServerState(msg) {
 
   // Render recent goals in launch overlay
   renderRecentGoals()
-
-  // If a new tab appeared in pendingTab, switch to it
-  if (msg.pendingTab) {
-    const { tabId } = msg.pendingTab
-    // It'll be populated on next snapshot
-    switchToTab(tabId)
-  }
 
   // If no tabs, show launch overlay; else show TUI
   if (state.tabs.length === 0) {
@@ -1148,7 +1150,9 @@ function renderTabBar() {
     btn.appendChild(dot)
 
     const label = document.createElement('span')
-    label.textContent = tab.goalText.slice(0, 28) + (tab.goalText.length > 28 ? '…' : '')
+    const displayText = tab.goalText.slice(0, 28) + (tab.goalText.length > 28 ? '…' : '')
+    label.textContent = tab.tabId.startsWith('replay-') ? `🔁 ${displayText}` : displayText
+    btn.title = tab.goalText  // P2-4: full text on hover
     btn.appendChild(label)
 
     const close = document.createElement('span')
@@ -1180,10 +1184,12 @@ function switchToTab(tabId) {
       goal: state.goal, riskCount: state.riskCount, lastRisk: state.lastRisk,
       runStartMs: state.runStartMs, runFinished: state.runFinished,
       finalReport: state.finalReport, activeTab: state.activeTab,
+      replayMode: state.replayMode,
     }
   }
 
   state.activeTabId = tabId
+  state.replayMode  = tabId.startsWith('replay-')  // replay tabs are always read-only
   hideLaunchOverlay()
 
   // Always restore from local cache immediately for fast render
@@ -1304,7 +1310,7 @@ async function loadHistory() {
       item.className = 'history-goal-item'
       item.innerHTML = `
         <div class="history-goal-text">${esc(g.text)}</div>
-        <div class="history-goal-meta">${fmtTimeAgo(g.createdAt)} · id: ${g.id}</div>
+        <div class="history-goal-meta">${fmtTimeAgo(g.createdAt)}</div>
         <div class="history-run-list" id="runs-${g.id}"></div>
       `
       item.onclick = async (e) => {
@@ -1312,21 +1318,30 @@ async function loadHistory() {
         item.classList.toggle('expanded')
         const runList = document.getElementById(`runs-${g.id}`)
         if (item.classList.contains('expanded') && !runList.innerHTML) {
+          runList.innerHTML = '<div style="padding:4px 8px;color:var(--dim);font-size:11px">Loading…</div>'
           const runs = await fetch(`/api/goals/${g.id}/runs`).then(r => r.json())
-          runList.innerHTML = runs.length ? '' : '<div style="padding:4px 8px;color:var(--dim);font-size:11px">No runs yet</div>'
+          runList.innerHTML = runs.length ? '' : '<div style="padding:4px 8px;color:var(--dim);font-size:11px">No runs</div>'
           for (const r of runs) {
             const ri = document.createElement('div')
             ri.className = 'history-run-item'
-            const dotColor = r.status === 'completed' ? 'var(--green)' : r.status === 'failed' ? 'var(--red)' : 'var(--cyan)'
+            const dotColor = r.status === 'completed' ? 'var(--green)'
+                           : r.status === 'failed'    ? 'var(--red)'
+                           : r.status === 'interrupted' ? 'var(--yellow)'
+                           : 'var(--cyan)'
+            const tokStr = r.tokenTotal > 0 ? `${fmtNum(r.tokenTotal)} tok` : ''
+            const durStr = r.finishedAt ? fmtElapsed(r.finishedAt - r.createdAt) : ''
+            const costStr = r.costUsd > 0.001 ? `$${r.costUsd.toFixed(3)}` : ''
             ri.innerHTML = `
               <span class="history-run-status" style="background:${dotColor}"></span>
-              <span>${fmtTimeAgo(r.createdAt)} · ${r.agents}a · ${r.tokenTotal > 0 ? fmtNum(r.tokenTotal) + ' tok' : r.status}</span>
+              <span style="flex:1">${fmtTimeAgo(r.createdAt)} · ${r.agents}a · ${r.status}</span>
+              <span style="color:var(--dim);font-size:10px">${[tokStr,durStr,costStr].filter(Boolean).join(' · ')}</span>
+              <button class="btn" style="font-size:10px;padding:1px 7px;margin-left:6px;flex-shrink:0"
+                onclick="event.stopPropagation();openReplay('${r.id}','${esc(g.text)}')">🔁</button>
             `
             ri.onclick = () => {
-              // Fill goal text into launcher
               document.getElementById('launch-goal').value = g.text
               closeHistory()
-              showLaunchOverlay()
+              openNewRun()
             }
             runList.appendChild(ri)
           }
@@ -1334,8 +1349,98 @@ async function loadHistory() {
       }
       body.appendChild(item)
     }
-  } catch {
-    body.innerHTML = '<div style="padding:12px;color:var(--red);font-size:12px">Failed to load history</div>'
+  } catch(err) {
+    body.innerHTML = `<div style="padding:12px;color:var(--red);font-size:12px">Failed: ${err}</div>`
+  }
+}
+
+// ── History Replay ─────────────────────────────────────────────────────────
+
+async function openReplay(runId, goalText) {
+  closeHistory()
+  const tabId = 'replay-' + runId.slice(-8)
+
+  // Show loading state immediately
+  if (!state.tabs.find(t => t.tabId === tabId)) {
+    state.tabs.push({ tabId, runId, goalId: '', goalText: `🔁 ${goalText.slice(0,24)}`, agents: 0, status: 'completed' })
+    renderTabBar()
+  }
+  state.activeTabId = tabId
+  state.replayMode = true
+  hideLaunchOverlay()
+  renderTabBar()
+
+  // Show loading skeleton
+  state.tasks = []; state.agents = []; state.log = []; state.goal = goalText
+  renderAll()
+
+  try {
+    const data = await fetch(`/api/runs/${runId}/replay`).then(r => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+      return r.json()
+    })
+
+    const replayState = {
+      tasks: data.tasks ?? [],
+      agents: [],
+      status: { tasks: computeTaskStatus(data.tasks ?? []), agents: { idle:0, busy:0, crashed:0, total:0 }, locks:0, pendingApprovals:0, phase:0, runId },
+      tokenStats: data.tokenStats ?? null,
+      phaseHistory: [],
+      pendingApprovals: [],
+      log: data.log ?? [],
+      goal: data.goalText ?? goalText,
+      riskCount: 0, lastRisk: '',
+      runStartMs: data.createdAt ?? Date.now(),
+      runFinished: true,
+      finalReport: {
+        result: data.status === 'completed' ? 'completed' : 'failed',
+        runId, tasks: computeTaskStatus(data.tasks ?? []),
+        tokenStats: data.tokenStats,
+        summaries: (data.tasks ?? []).filter(t => t.status === 'done' && t.output).map(t => ({
+          id: t.id, title: t.title, type: t.type,
+          summary: t.output?.summary ?? '', risks: t.output?.risks ?? [],
+          blockers: t.output?.blockers ?? [], changes: t.output?.changes ?? [],
+          tokenUsage: t.tokenUsage ?? null,
+          durationMs: (t.startedAt && t.completedAt) ? t.completedAt - t.startedAt : null,
+        })),
+        errors: (data.tasks ?? []).filter(t => t.status === 'failed').map(t => ({id:t.id,title:t.title,error:t.error})),
+      },
+      activeTab: 'results',
+    }
+    state.tabStates[tabId] = replayState
+    Object.assign(state, replayState)
+    renderAll()
+    switchTab('results')
+  } catch(err) {
+    state.log = [`Error loading replay: ${err}`]
+    renderLog()
+  }
+}
+
+function closeReplay() {
+  const tabId = state.activeTabId
+  // Remove replay tab from list
+  state.tabs = state.tabs.filter(t => t.tabId !== tabId)
+  delete state.tabStates[tabId]
+  state.replayMode = false
+  // Switch to first real tab or show launcher
+  const nextTab = state.tabs.find(t => !t.tabId.startsWith('replay-'))
+  if (nextTab) {
+    switchToTab(nextTab.tabId)
+  } else {
+    state.activeTabId = null
+    showLaunchOverlay()
+  }
+  renderTabBar()
+  updateReplayUI()
+}
+
+function computeTaskStatus(tasks) {
+  return {
+    total: tasks.length,
+    done: tasks.filter(t => t.status === 'done').length,
+    failed: tasks.filter(t => t.status === 'failed').length,
+    running: 0, ready: 0, blocked: 0, interrupted: 0,
   }
 }
 
@@ -1446,13 +1551,21 @@ function handleMessage(msg) {
       break
 
     case 'run.planning': {
-      // Server started planning — update button to show progress
       const btn = document.getElementById('launch-start-btn')
-      if (btn) { btn.disabled = true; btn.textContent = '⏳ Planning…' }
-      // Add pending tab to tab bar immediately for feedback
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Asking AI planner…' }
+      // Add pending tab to bar immediately
       if (msg.tabId && !state.tabs.find(t => t.tabId === msg.tabId)) {
         state.tabs.push({ tabId: msg.tabId, runId: '', goalId: '', goalText: msg.goalText ?? '…', agents: 0, status: 'planning' })
         state.activeTabId = msg.tabId
+        // Show planning progress in goal bar
+        state.goal = msg.goalText ?? ''
+        const goalRow = document.getElementById('header-row3')
+        const goalText = document.getElementById('goal-text')
+        if (goalRow && goalText) {
+          goalText.textContent = `⏳ Planning: ${msg.goalText ?? ''}`
+          goalRow.style.display = 'flex'
+        }
+        hideLaunchOverlay()
         renderTabBar()
       }
       break
@@ -1519,10 +1632,16 @@ function handleMessage(msg) {
       showRunFinished(msg)
       renderResults()
       switchTab('results')
-      document.getElementById('pause-btn').disabled = true
-      document.getElementById('add-task-btn').style.opacity = '0.3'
-      document.getElementById('add-task-btn').style.pointerEvents = 'none'
-      // In serve mode: update tab status
+      updateReplayUI()
+      // Persist finalReport into tabState so switching back works
+      if (state.serveMode && state.activeTabId) {
+        if (!state.tabStates[state.activeTabId]) state.tabStates[state.activeTabId] = {}
+        state.tabStates[state.activeTabId].finalReport  = msg
+        state.tabStates[state.activeTabId].runFinished  = true
+        state.tabStates[state.activeTabId].activeTab    = 'results'
+        state.tabStates[state.activeTabId].phaseHistory = state.phaseHistory
+      }
+      // Update tab status dot
       if (state.serveMode) {
         const tab = state.tabs.find(t => t.tabId === msg.tabId || t.tabId === state.activeTabId)
         if (tab) tab.status = msg.result === 'completed' ? 'completed' : 'failed'
@@ -2041,6 +2160,18 @@ function renderAll() {
   renderAgents()
   renderLog()
   if (state.activeTab === 'results') renderResults()
+  updateReplayUI()
+}
+
+function updateReplayUI() {
+  const pauseBtn  = document.getElementById('pause-btn')
+  const addBtn    = document.getElementById('add-task-btn')
+  const replayBanner = document.getElementById('replay-banner')
+  const isReplay  = state.replayMode || state.runFinished
+
+  if (pauseBtn)  pauseBtn.disabled  = isReplay
+  if (addBtn)  { addBtn.style.opacity = isReplay ? '0.3' : '1'; addBtn.style.pointerEvents = isReplay ? 'none' : '' }
+  if (replayBanner) replayBanner.style.display = state.replayMode ? 'flex' : 'none'
 }
 
 // ── Task Detail ───────────────────────────────────────────────────────────────

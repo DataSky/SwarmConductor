@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm Conductor DAG 原理详解</title>
+
+<!-- highlight.js -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+
+<!-- mermaid -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-emphasis: #1f6feb;
+    --green: #3fb950;
+    --orange: #d2991d;
+    --red: #f85149;
+    --purple: #a371f7;
+    --sidebar-width: 260px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────── */
+
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 20px;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  #sidebar h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 16px;
+    letter-spacing: 0.02em;
+  }
+
+  #sidebar nav a {
+    display: block;
+    padding: 6px 0;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    padding-left: 12px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  #sidebar nav a:hover,
+  #sidebar nav a.active {
+    color: var(--text);
+    border-left-color: var(--accent);
+  }
+
+  #sidebar nav a.sub {
+    padding-left: 28px;
+    font-size: 12.5px;
+  }
+
+  /* ── Main ────────────────────────────────────────── */
+
+  #main {
+    margin-left: var(--sidebar-width);
+    max-width: 900px;
+    padding: 40px 48px 80px;
+    width: 100%;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #f0f6fc;
+  }
+
+  h1 + p.subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+  }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 48px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: #f0f6fc;
+  }
+
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    color: #e6edf3;
+  }
+
+  p, li {
+    font-size: 15px;
+    color: var(--text);
+  }
+
+  p { margin-bottom: 14px; }
+
+  ul, ol {
+    margin-bottom: 14px;
+    padding-left: 24px;
+  }
+
+  li { margin-bottom: 4px; }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  a:hover { text-decoration: underline; }
+
+  strong { color: #f0f6fc; }
+
+  code {
+    font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+    font-size: 13px;
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  pre {
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: transparent;
+    padding: 0;
+    border: none;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .file-ref {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: block;
+    margin-top: -16px;
+    margin-bottom: 16px;
+  }
+
+  .file-ref::before { content: "📄 "; }
+
+  /* ── Callouts ────────────────────────────────────── */
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(88, 166, 255, 0.06);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+  }
+
+  .callout.info  { border-left-color: var(--accent); }
+  .callout.warn  { border-left-color: var(--orange); background: rgba(210, 153, 29, 0.06); }
+  .callout.tip   { border-left-color: var(--green); background: rgba(63, 185, 80, 0.06); }
+
+  /* ── Diagram container ───────────────────────────── */
+
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  .diagram figcaption {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 12px;
+  }
+
+  /* ── Status badges ───────────────────────────────── */
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin: 0 2px;
+    letter-spacing: 0.03em;
+  }
+  .badge.pending     { background: #30363d; color: #8b949e; }
+  .badge.ready       { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .badge.running     { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .badge.done        { background: rgba(63,185,80,0.2); color: #3fb950; }
+  .badge.failed      { background: rgba(248,81,73,0.15); color: #f85149; }
+  .badge.blocked     { background: rgba(210,153,29,0.15); color: #d2991d; }
+  .badge.interrupted { background: rgba(163,113,247,0.15); color: #a371f7; }
+
+  /* ── Responsive ──────────────────────────────────── */
+
+  @media (max-width: 768px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; padding: 24px 20px; }
+  }
+
+  /* ── Print ───────────────────────────────────────── */
+
+  @media print {
+    #sidebar { display: none; }
+    #main { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- Sidebar -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<aside id="sidebar">
+  <h2>📋 目录</h2>
+  <nav>
+    <a href="#overview">概览</a>
+    <a href="#why-dag" class="sub">为什么需要 DAG</a>
+    <a href="#data-structures">核心数据结构</a>
+    <a href="#tasknode" class="sub">TaskNode 任务节点</a>
+    <a href="#taskgraph" class="sub">TaskGraph 任务图</a>
+    <a href="#taskstatus" class="sub">状态机</a>
+    <a href="#dag-construction">DAG 构造</a>
+    <a href="#factory" class="sub">工厂函数</a>
+    <a href="#wiring" class="sub">添加与边关联</a>
+    <a href="#topological-scheduling">拓扑调度算法</a>
+    <a href="#ready-tasks" class="sub">就绪任务筛选</a>
+    <a href="#tick-loop" class="sub">调度时钟循环</a>
+    <a href="#agent-dispatch" class="sub">Agent 分派</a>
+    <a href="#cycle-detection">环检测与死锁</a>
+    <a href="#execution-flow">执行流程</a>
+    <a href="#complete" class="sub">任务完成</a>
+    <a href="#fail-retry" class="sub">失败与重试</a>
+    <a href="#interrupt" class="sub">中断</a>
+    <a href="#dynamic-tasks">动态任务插入</a>
+    <a href="#conflict-detection">冲突检测</a>
+    <a href="#example-walkthrough">实例走读</a>
+    <a href="#diagrams">可视化图谱</a>
+    <a href="#summary">总结</a>
+  </nav>
+</aside>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- Main Content -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<main id="main">
+
+<h1>Swarm Conductor DAG 原理详解</h1>
+<p class="subtitle">有向无环图（DAG）任务编排引擎 · 拓扑调度 · 死锁检测 · 动态扩展</p>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Overview -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="overview">1. 概览</h2>
+
+<p>
+  Swarm Conductor 的核心是一个<strong>基于有向无环图（DAG）的任务编排引擎</strong>。
+  它让最多 20 个 CodeWhale AI Agent 同时处理一个大型项目，通过声明式任务依赖关系自动协调执行顺序，
+  避免文件写入冲突，并在 Agent 崩溃或任务失败时自动恢复。
+</p>
+
+<h3 id="why-dag">1.1 为什么需要 DAG</h3>
+
+<p>
+  在大型项目中，任务之间存在天然的顺序约束：必须先 <em>探索</em> 代码结构，再基于探索结果 <em>制定计划</em>，
+  然后 <em>实施</em> 修改，最后 <em>审核</em> 和 <em>验证</em>。DAG 模型将这些约束建模为图中的有向边：
+</p>
+
+<ul>
+  <li><strong>节点 (Node)</strong>：一个可执行的任务（如分析、编码、审查）</li>
+  <li><strong>有向边 (Edge)</strong>：从任务 A 指向任务 B，表示 B 依赖 A 的完成</li>
+  <li><strong>无环 (Acyclic)</strong>：图中不存在循环依赖，保证任务可以按拓扑序逐一调度</li>
+</ul>
+
+<p>
+  引擎的核心职责是：<strong>持续扫描哪些任务的所有依赖已满足，将其标记为就绪，然后分派给空闲的 Agent 执行</strong>。
+</p>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Core Data Structures -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="data-structures">2. 核心数据结构</h2>
+
+<p>所有类型定义位于 <code>src/dag/types.ts</code>，引擎实现在 <code>src/dag/engine.ts</code>。</p>
+
+<h3 id="tasknode">2.1 TaskNode — 任务节点</h3>
+
+<p><code>TaskNode</code> 是 DAG 的基本单元，描述一个待完成的任务。</p>
+
+<pre><code class="language-typescript">// src/dag/types.ts
+
+export interface TaskNode {
+  id: string                    // 唯一标识（crypto.randomUUID()）
+  type: TaskType                // "explore" | "plan" | "implement" | "review" | "verify" | "merge"
+  status: TaskStatus            // 当前状态（见状态机）
+  priority: number              // 优先级，数值越大越优先调度
+  title: string                 // 人类可读的标题
+  prompt: string                // 发送给 Agent 的指令
+  dependsOn: string[]           // 前置依赖任务 ID 列表（入边）
+  blocks: string[]              // 被阻塞的任务 ID 列表（出边，由引擎自动维护）
+  scope: string[]               // 涉及文件路径/glob，用于冲突检测
+  assignedTo: string | null     // 分配到的 Agent ID
+  role: AgentRole               // "explore" | "plan" | "implementer" | "review" | "verifier" | "general"
+  output: TaskOutput | null     // 完成后输出的结构化结果
+  error: string | null          // 失败信息
+  createdAt: number             // 创建时间戳
+  startedAt: number | null      // 开始执行时间
+  completedAt: number | null    // 完成时间
+  retryCount: number            // 已重试次数
+  maxRetries: number            // 最大重试次数（默认 2）
+  forkContext: boolean          // 是否继承父 Agent 上下文
+  tokenUsage: { ... } | null    // Token 用量统计
+}
+</code></pre>
+<span class="file-ref">src/dag/types.ts:30-51</span>
+
+<h3 id="taskgraph">2.2 TaskGraph — 任务图</h3>
+
+<pre><code class="language-typescript">// src/dag/types.ts
+
+export interface TaskGraph {
+  id: string                    // 本次执行运行的 ID
+  projectPath: string           // 项目路径
+  tasks: Map&lt;string, TaskNode&gt;  // 所有任务节点的 Map
+  phase: number                 // 当前阶段号
+  createdAt: number
+  updatedAt: number
+}
+</code></pre>
+<span class="file-ref">src/dag/types.ts:70-77</span>
+
+<h3 id="taskstatus">2.3 状态机</h3>
+
+<p>
+  每个 TaskNode 的生命周期由 <code>TaskStatus</code> 状态机驱动。状态转换路径如下：
+</p>
+
+<div class="diagram">
+  <div class="mermaid">
+stateDiagram-v2
+    [*] --> pending: 创建任务
+    pending --> ready: 无依赖
+    pending --> blocked: 有未满足的依赖
+    blocked --> ready: 所有依赖进入终态
+    ready --> running: 分配 Agent
+    running --> done: 任务成功完成
+    running --> ready: 失败但可重试
+    running --> failed: 重试耗尽
+    running --> interrupted: 死锁中断
+    done --> [*]
+    failed --> [*]
+    interrupted --> [*]
+  </div>
+  <figcaption>图 1: TaskNode 状态机</figcaption>
+</div>
+
+<pre><code class="language-typescript">// src/dag/types.ts
+
+export type TaskStatus =
+  | "pending"     // 等待依赖检查
+  | "blocked"     // 存在未满足的依赖
+  | "ready"       // 所有依赖已满足，等待 Agent
+  | "running"     // 已分配给 Agent 正在执行
+  | "done"        // 成功完成
+  | "failed"      // 最终失败（重试耗尽）
+  | "interrupted" // 被强制中断（死锁解决等）
+</code></pre>
+<span class="file-ref">src/dag/types.ts:11-18</span>
+
+<div class="callout tip">
+  <strong>关键设计：</strong><code>done</code>、<code>failed</code>、<code>interrupted</code> 三者统称为<strong>终态 (terminal states)</strong>。下游任务的解锁条件是「所有依赖均已到达终态」，无论上游成功与否。
+</div>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- DAG Construction -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="dag-construction">3. DAG 构造</h2>
+
+<h3 id="factory">3.1 工厂函数</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+export function createTaskNode(partial: ...): TaskNode {
+  const roleForType: Record&lt;TaskType, AgentRole&gt; = {
+    explore: "explore", plan: "plan",
+    implement: "implementer", review: "review",
+    verify: "verifier", merge: "general",
+  }
+
+  return {
+    id: uuid(),
+    status: "pending",
+    priority: partial.priority ?? 50,
+    dependsOn: partial.dependsOn ?? [],
+    blocks: partial.blocks ?? [],
+    assignedTo: null,
+    role: partial.role ?? roleForType[partial.type],
+    output: null, error: null,
+    createdAt: Date.now(),
+    startedAt: null, completedAt: null,
+    retryCount: 0,
+    maxRetries: partial.maxRetries ?? 2,
+    forkContext: partial.forkContext ?? false,
+    tokenUsage: null,
+    ...partial,
+  }
+}
+
+export function createTaskGraph(projectPath: string): TaskGraph {
+  return { id: uuid(), projectPath, tasks: new Map(),
+           phase: 0, createdAt: Date.now(), updatedAt: Date.now() }
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:16-59</span>
+
+<p>
+  <code>createTaskNode</code> 接收任务的最小属性（type, title, prompt, scope），
+  自动推导 Agent 角色、生成 UUID、设置默认值。所有新任务初始状态为 <code>pending</code>。
+</p>
+
+<h3 id="wiring">3.2 添加任务与依赖边关联</h3>
+
+<p>
+  <code>addTasks</code> 批量添加任务时，自动建立双向边引用：
+</p>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+addTasks(nodes: TaskNode[]): void {
+  for (const node of nodes) {
+    this.graph.tasks.set(node.id, { ...node })
+  }
+  // Wire reverse edges — 关键步骤
+  for (const node of nodes) {
+    for (const depId of node.dependsOn) {
+      const dep = this.graph.tasks.get(depId)
+      if (!dep) throw new Error(`Task ${node.id} depends on unknown task ${depId}`)
+      if (!dep.blocks.includes(node.id)) dep.blocks.push(node.id)
+    }
+  }
+  // 添加后重新计算每个任务的状态
+  for (const node of nodes) {
+    this.recomputeStatus(node.id)
+  }
+  this.touch()
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:92-109</span>
+
+<p>
+  <strong>添加流程：</strong>
+</p>
+
+<ol>
+  <li>将每个任务浅拷贝后存入 <code>tasks</code> Map</li>
+  <li>遍历每个任务的 <code>dependsOn</code>，在被依赖任务的 <code>blocks</code> 数组中追加当前任务 ID（这样当被依赖任务完成时，可以快速找到并解锁下游）</li>
+  <li>对每个任务调用 <code>recomputeStatus</code> 确定其初始状态（无依赖的 → ready，有依赖的 → blocked）</li>
+  <li>更新时间戳</li>
+</ol>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Topological Scheduling -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="topological-scheduling">4. 拓扑调度算法</h2>
+
+<h3 id="ready-tasks">4.1 就绪任务筛选</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+readyTasks(): TaskNode[] {
+  return this.allTasks()
+    .filter(t => t.status === "ready")
+    .sort((a, b) => b.priority - a.priority)
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:166-170</span>
+
+<p>
+  每次调度时钟滴答时，引擎抓取所有 <code>ready</code> 状态的任务，按 <code>priority</code> 降序排列。
+  优先级数值越大越靠前。默认优先级为 50，动态插入的任务会获得略高于父任务的优先级。
+</p>
+
+<h3 id="tick-loop">4.2 调度时钟循环（Tick Loop）</h3>
+
+<p>调度循环在 <code>Conductor</code> 类中运行，以固定间隔（默认 500ms）触发：</p>
+
+<pre><code class="language-typescript">// src/conductor/index.ts
+
+private async tick(): Promise&lt;void&gt; {
+  if (this.approvalGate.hasPending()) return   // 等待人工审批
+  this.checkDeadlocks()                         // 先检测死锁
+
+  // 全部任务完成？
+  if (this.dag.isComplete()) {
+    this.stopScheduler()
+    const finalStatus = this.dag.hasCriticalFailure() ? "failed" : "completed"
+    this.store.updateRunStatus(finalStatus)
+    this.emit(finalStatus === "completed" ? "run.completed" : "run.failed", { phase: this.dag.phase })
+    return
+  }
+
+  const idleAgents = this.agentMgr.idleInstances()
+  if (idleAgents.length === 0) return           // 没有空闲 Agent
+
+  for (const task of this.dag.readyTasks()) {
+    if (idleAgents.length === 0) break
+    if (this.dag.conflictingRunning(task.scope).length > 0) continue  // 文件冲突，跳过
+
+    // Agent 匹配：按角色优先，其次 general，最后任意空闲
+    const agent =
+      this.agentMgr.idleByRole(task.role)[0] ??
+      this.agentMgr.idleByRole("general")[0] ??
+      idleAgents[0]
+    if (!agent) continue
+
+    // 文件锁
+    if (task.scope.length > 0) {
+      if (!this.lockRegistry.tryAcquire(task.scope, agent.id, task.id)) continue
+      this.emit("lock.acquired", { agentId: agent.id, taskId: task.id, scope: task.scope })
+    }
+
+    idleAgents.splice(idleAgents.indexOf(agent), 1)
+    this.dispatch(agent.id, task).catch(err =>
+      console.error(`[conductor] dispatch error task=${task.id}:`, err))
+  }
+}
+</code></pre>
+<span class="file-ref">src/conductor/index.ts:242-277</span>
+
+<h3 id="agent-dispatch">4.3 Agent 分派（Dispatch）</h3>
+
+<p>当调度器选定任务和 Agent 后，执行分派：</p>
+
+<ol>
+  <li><strong>构建上下文：</strong>从 SQLite 读取该任务 scope 相关的共享记忆和项目地图，拼接 <code>buildAgentPrompt</code> 生成完整 prompt</li>
+  <li><strong>标记状态：</strong>Agent 标记为 busy，DAG 中任务从 ready → running</li>
+  <li><strong>创建线程：</strong>通过 CodeWhale API 创建对话线程并提交 turn</li>
+  <li><strong>等待完成：</strong>轮询等待 Agent 输出完成（可配置超时、支持流式输出）</li>
+  <li><strong>解析输出：</strong>解析 <code>## SUMMARY / CHANGES / EVIDENCE / RISKS / BLOCKERS</code> 五段式输出</li>
+  <li><strong>写入记忆：</strong>将结果写入 SQLite 共享记忆层，供下游 Agent 使用</li>
+  <li><strong>动态扩展：</strong>检测输出中的 BLOCKERS 和 RISKS，自动插入后续任务</li>
+  <li><strong>审批门：</strong>若存在高风险项，暂停调度等候人工决策</li>
+</ol>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Cycle Detection -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="cycle-detection">5. 环检测与死锁</h2>
+
+<p>
+  虽然 DAG 构造时保证无环，但运行时可能出现<strong>事实上的死锁</strong>：两个 running 任务互相等待对方完成。
+  系统在每次 tick 时检测并解决。
+</p>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+/** 返回检测到的环中的任务 ID，无环则返回空数组。 */
+detectDeadlock(): string[] {
+  const running = this.runningTasks()
+  const runningIds = new Set(running.map(t => t.id))
+  const cycle: string[] = []
+
+  for (const task of running) {
+    if (task.dependsOn.some(depId => runningIds.has(depId))) {
+      cycle.push(task.id)
+    }
+  }
+  return cycle
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:188-200</span>
+
+<p>在 Conductor 层面，死锁的解决策略是选择环中<strong>优先级最低的任务中断</strong>：</p>
+
+<pre><code class="language-typescript">// src/conductor/index.ts
+
+private checkDeadlocks(): void {
+  const cycle = this.dag.detectDeadlock()
+  if (cycle.length === 0) return
+  this.emit("deadlock.detected", { cycle })
+  const victim = cycle
+    .map(id => this.dag.getTask(id))
+    .filter((t): t is TaskNode => t !== undefined)
+    .sort((a, b) => a.priority - b.priority)[0]  // 最低优先级
+  if (victim) {
+    this.dag.interrupt(victim.id)
+    if (victim.assignedTo) {
+      this.lockRegistry.releaseByAgent(victim.assignedTo)
+      this.agentMgr.markIdle(victim.assignedTo)
+    }
+  }
+}
+</code></pre>
+<span class="file-ref">src/conductor/index.ts:404-419</span>
+
+<div class="callout info">
+  <strong>中断 vs 失败：</strong>被中断的任务进入 <code>interrupted</code> 终态，会解锁其下游任务（下游无需等待中断任务完成）。这与 <code>failed</code> 的行为一致：两者都是终态，都会触发 <code>unblockDownstream</code>。
+</div>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Execution Flow -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="execution-flow">6. 执行流程</h2>
+
+<h3 id="complete">6.1 任务完成</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+complete(taskId: string, output: TaskOutput): void {
+  const task = this.mustGet(taskId)
+  task.output = output
+  task.assignedTo = null
+  task.completedAt = Date.now()
+  this.transition(taskId, "done")
+  this.unblockDownstream(taskId)    // 解锁所有下游任务
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:118-125</span>
+
+<h3 id="fail-retry">6.2 失败与重试</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+fail(taskId: string, error: string): void {
+  const task = this.mustGet(taskId)
+  task.error = error
+  task.assignedTo = null
+
+  if (task.retryCount < task.maxRetries) {
+    task.retryCount++
+    task.error = null
+    task.startedAt = null
+    this.transition(taskId, "ready")    // 回到就绪，等待重新分派
+  } else {
+    task.completedAt = Date.now()
+    this.transition(taskId, "failed")   // 耗尽重试，进入终态
+    this.unblockDownstream(taskId)      // 即使是失败，也解锁下游
+  }
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:127-142</span>
+
+<div class="callout tip">
+  <strong>关键设计决策：</strong>即使上游任务失败（重试耗尽），也会解锁下游。这是因为下游任务（如 review）可能仍然有意义——它可以汇报「上游失败，代码未变更」。测试覆盖了这种场景：A (maxRetries=0) → fail → B 被 unblock 进入 ready。
+</div>
+
+<h3 id="interrupt">6.3 任务中断</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+interrupt(taskId: string): void {
+  const task = this.mustGet(taskId)
+  task.assignedTo = null
+  this.transition(taskId, "interrupted")
+  this.unblockDownstream(taskId)
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:144-149</span>
+
+<h3>6.4 下游解锁（核心递归传播）</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+private unblockDownstream(completedId: string): void {
+  const task = this.mustGet(completedId)
+  for (const blockId of task.blocks) {
+    this.recomputeStatus(blockId)
+  }
+}
+
+private recomputeStatus(id: string): void {
+  const task = this.mustGet(id)
+  if (task.status !== "pending" && task.status !== "blocked") return
+
+  if (task.dependsOn.length === 0) {
+    this.transition(id, "ready")
+    return
+  }
+
+  // 解锁条件：所有依赖均为终态
+  const allTerminal = task.dependsOn.every(depId => {
+    const dep = this.graph.tasks.get(depId)
+    return dep?.status === "done" || dep?.status === "failed" || dep?.status === "interrupted"
+  })
+
+  if (allTerminal) {
+    this.transition(id, "ready")
+  } else {
+    this.transition(id, "blocked")
+  }
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:278-283, 255-276</span>
+
+<div class="callout warn">
+  <strong>注意：</strong>解锁只传播一步。如果 A → B → C 且 A 完成，则 B 变为 ready，但 C 仍然 blocked（B 未进入终态）。C 要等到 B 完成后才会被 recompute。测试明确验证了这种多跳链式传播：<code>unblocks through multi-hop dependency chain when dependency fails</code>。
+</div>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Dynamic Tasks -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="dynamic-tasks">7. 动态任务插入</h2>
+
+<p>
+  动态任务扩展是系统最强大的特性之一：Agent 完成任务后，其输出中的 <code>## BLOCKERS</code> 和
+  <code>## RISKS</code> 会自动生成新的后续任务并插入到 DAG 中。实现位于
+  <code>src/conductor/dynamic-tasks.ts</code>。
+</p>
+
+<pre><code class="language-typescript">// src/conductor/dynamic-tasks.ts
+
+export function generateFollowupTasks(
+  completedTask: TaskNode,
+  output: TaskOutput,
+  existingTitles: Set&lt;string&gt;          // 去重
+): DynamicInsertionResult {
+  // 1. 每个 BLOCKER → 新的 "implement" 任务
+  // 2. 高风险 RISKS   → 新的 "review" 任务
+  // 3. 涉及测试文件   → 新的 "verify" 任务
+  ...
+}
+</code></pre>
+<span class="file-ref">src/conductor/dynamic-tasks.ts:30-118</span>
+
+<p>三条规则：</p>
+
+<table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-size:14px;">
+  <tr style="border-bottom:1px solid var(--border);">
+    <th style="text-align:left; padding:8px 12px; color:var(--accent);">触发条件</th>
+    <th style="text-align:left; padding:8px 12px; color:var(--accent);">生成任务类型</th>
+    <th style="text-align:left; padding:8px 12px; color:var(--accent);">优先级偏移</th>
+  </tr>
+  <tr style="border-bottom:1px solid var(--border);">
+    <td style="padding:8px 12px;">BLOCKERS 中有非空条目</td>
+    <td style="padding:8px 12px;"><code>implement</code></td>
+    <td style="padding:8px 12px;">+5（高于父任务）</td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--border);">
+    <td style="padding:8px 12px;">RISKS 匹配 high/critical/severe 关键词</td>
+    <td style="padding:8px 12px;"><code>review</code></td>
+    <td style="padding:8px 12px;">+10（紧急审查）</td>
+  </tr>
+  <tr style="border-bottom:1px solid var(--border);">
+    <td style="padding:8px 12px;">变更涉及测试文件</td>
+    <td style="padding:8px 12px;"><code>verify</code></td>
+    <td style="padding:8px 12px;">-5（验证可稍后）</td>
+  </tr>
+</table>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Conflict Detection -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="conflict-detection">8. 冲突检测</h2>
+
+<p>
+  当多个任务同时操作相同文件时会产生写冲突。系统通过两层机制防范：
+</p>
+
+<h3>8.1 DAG 层：Scope 冲突</h3>
+
+<pre><code class="language-typescript">// src/dag/engine.ts
+
+/** 检查两个 scope 是否存在交集 */
+scopesConflict(a: string[], b: string[]): boolean {
+  const setA = new Set(a)
+  return b.some(f => setA.has(f))
+}
+
+/** 查找与给定 scope 冲突的正在运行任务 */
+conflictingRunning(scope: string[]): TaskNode[] {
+  return this.runningTasks().filter(t => this.scopesConflict(t.scope, scope))
+}
+</code></pre>
+<span class="file-ref">src/dag/engine.ts:202-211</span>
+
+<p>在调度 tick 中，如果某个 ready 任务的 scope 与任何 running 任务冲突，该任务会被跳过，等待冲突解除后再分派。</p>
+
+<h3>8.2 运行时层：文件锁（FileLockRegistry）</h3>
+
+<pre><code class="language-typescript">// src/workspace/file-lock.ts
+
+tryAcquire(paths: string[], agentId: string, taskId: string): boolean {
+  this.evictExpired()                   // 先驱逐过期锁
+  const normalized = paths.map(p => normalizePath(p))
+  for (const p of normalized) {
+    if (this.locks.has(p)) return false // 任何一个文件已被锁定，则整体失败
+  }
+  // 全或无：所有文件都锁住才算成功
+  const now = Date.now()
+  for (const p of normalized) {
+    this.locks.set(p, { path: p, heldBy: agentId, taskId,
+                         acquiredAt: now, expiresAt: now + this.ttlMs })
+  }
+  return true
+}
+</code></pre>
+<span class="file-ref">src/workspace/file-lock.ts:15-38</span>
+
+<p>文件锁采用<strong>原子全或无</strong>策略：如果任务声明了多个文件的 scope，必须全部未被锁定才能获取。锁有 TTL（默认 300s），Agent 崩溃后会自动过期释放。</p>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Example Walkthrough -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="example-walkthrough">9. 实例走读</h2>
+
+<p>以下是一个三阶段 DAG 的完整执行流程：3 个 explore 任务并行 → 1 个 plan 任务聚合 → 动态扩展。</p>
+
+<h3>9.1 初始 DAG 结构</h3>
+
+<div class="diagram">
+  <div class="mermaid">
+graph TD
+    A["🔍 分析项目结构<br/>type: explore<br/>scope: [src]"] --> D["📋 制定优化方案<br/>type: plan<br/>dependsOn: A,B,C"]
+    B["🔍 检查测试覆盖<br/>type: explore<br/>scope: [tests]"] --> D
+    C["🔍 识别代码问题<br/>type: explore<br/>scope: [src]"] --> D
+    D --> E["🔧 Fix: 缺失错误处理<br/>type: implement<br/>动态插入"]
+    D --> F["👀 Review risk: 安全漏洞<br/>type: review<br/>动态插入"]
+
+    style A fill:#1f6feb,color:#fff
+    style B fill:#1f6feb,color:#fff
+    style C fill:#1f6feb,color:#fff
+    style D fill:#8957e5,color:#fff
+    style E fill:#3fb950,color:#fff
+    style F fill:#d2991d,color:#000
+  </div>
+  <figcaption>图 2: 三阶段 DAG 示例（含动态扩展）</figcaption>
+</div>
+
+<h3>9.2 执行时序</h3>
+
+<table style="width:100%; border-collapse:collapse; font-size:13px;">
+  <tr style="border-bottom:1px solid var(--border);">
+    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary); width:50px;">步骤</th>
+    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary);">事件</th>
+    <th style="text-align:left; padding:8px 12px; color:var(--text-secondary);">DAG 状态变化</th>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border);">
+    <td style="padding:8px 12px; vertical-align:top;">1</td>
+    <td style="padding:8px 12px; vertical-align:top;">Conductor 初始化，addPhase 添加 4 个任务</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      A,B,C 无依赖 → <span class="badge ready">ready</span><br>
+      D 依赖 A,B,C → <span class="badge blocked">blocked</span>
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">2</td>
+    <td style="padding:8px 12px; vertical-align:top;">Tick #1：3 个 Agent 空闲 → 分派 A, B, C</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      A → <span class="badge running">running</span> (agent-1)<br>
+      B → <span class="badge running">running</span> (agent-2)<br>
+      C → <span class="badge running">running</span> (agent-3)
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">3</td>
+    <td style="padding:8px 12px; vertical-align:top;">A 完成，输出解析正常</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      A → <span class="badge done">done</span>；recompute B → 仍 blocked (C 未完成)<br>
+      recompute D → 仍 blocked (B,C 未完成)
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">4</td>
+    <td style="padding:8px 12px; vertical-align:top;">B 完成</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      B → <span class="badge done">done</span>；recompute D → 仍 blocked (C 未完成)
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">5</td>
+    <td style="padding:8px 12px; vertical-align:top;">C 失败（重试耗尽）</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      C → <span class="badge failed">failed</span>；recompute D → 所有依赖均为终态 → <span class="badge ready">ready</span>
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">6</td>
+    <td style="padding:8px 12px; vertical-align:top;">Tick #N：D 被分派给 plan agent</td>
+    <td style="padding:8px 12px; vertical-align:top;">D → <span class="badge running">running</span></td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">7</td>
+    <td style="padding:8px 12px; vertical-align:top;">D 完成，输出含 BLOCKERS 和 RISKS</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      D → <span class="badge done">done</span><br>
+      动态插入 E: "Fix: 缺失错误处理" → <span class="badge blocked">blocked</span> (dependsOn D)<br>
+      动态插入 F: "Review risk: 安全漏洞" → <span class="badge blocked">blocked</span> (dependsOn D)
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border); background:rgba(88,166,255,0.03);">
+    <td style="padding:8px 12px; vertical-align:top;">8</td>
+    <td style="padding:8px 12px; vertical-align:top;">E, F 被顺序分派</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      E → <span class="badge done">done</span>；F → <span class="badge done">done</span>
+    </td>
+  </tr>
+
+  <tr style="border-bottom:1px solid var(--border);">
+    <td style="padding:8px 12px; vertical-align:top;">9</td>
+    <td style="padding:8px 12px; vertical-align:top;">所有任务进入终态 → isComplete() = true</td>
+    <td style="padding:8px 12px; vertical-align:top;">
+      调度器停止，emit <code>run.completed</code>
+    </td>
+  </tr>
+</table>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Diagrams -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="diagrams">10. 可视化图谱</h2>
+
+<h3>10.1 系统架构全景</h3>
+
+<div class="diagram">
+  <div class="mermaid">
+graph TB
+    subgraph "用户接口"
+      CLI["CLI / swarm run<br/>--goal / --tasks"]
+      WEB["Web UI<br/>实时 Dashboard"]
+    end
+
+    subgraph "Conductor 核心"
+      SCH["Scheduler<br/>调度时钟 500ms"]
+      DAG["TaskDAG<br/>任务图引擎"]
+      DL["Deadlock Detector<br/>死锁检测"]
+      AG["Approval Gate<br/>人工审批门"]
+    end
+
+    subgraph "Agent 管理"
+      AM["AgentProcessManager<br/>Agent 进程池"]
+      CR["Crash Recovery<br/>崩溃恢复 + 心跳"]
+      FL["FileLockRegistry<br/>文件锁"]
+    end
+
+    subgraph "持久化"
+      DB["SQLite<br/>任务状态 · 共享记忆 · 事件日志"]
+      GIT["GitWorkspaceManager<br/>独立分支 · 自动合并"]
+    end
+
+    subgraph "CodeWhale Agents"
+      A1["Agent 1<br/>explore"]
+      A2["Agent 2<br/>implementer"]
+      A3["Agent N<br/>..."]
+    end
+
+    CLI --> SCH
+    WEB --> SCH
+    SCH --> DAG
+    SCH --> DL
+    DAG --> AG
+    AG --> SCH
+
+    SCH --> AM
+    AM --> A1
+    AM --> A2
+    AM --> A3
+    AM --> CR
+
+    DAG --> FL
+    FL --> AM
+
+    DAG --> DB
+    AM --> DB
+    DAG --> GIT
+    AM --> GIT
+  </div>
+  <figcaption>图 3: Swarm Conductor 系统架构</figcaption>
+</div>
+
+<h3>10.2 调度循环详细流程</h3>
+
+<div class="diagram">
+  <div class="mermaid">
+flowchart TD
+    START([Tick 触发]) --> APPROVAL{有审批等待?}
+    APPROVAL -->|是| END([跳过本次 tick])
+    APPROVAL -->|否| DEADLOCK[检测死锁]
+    DEADLOCK --> DLFOUND{发现死锁?}
+    DLFOUND -->|是| INTERRUPT[中断最低优先级任务]
+    INTERRUPT --> COMPLETE
+    DLFOUND -->|否| COMPLETE{isComplete?}
+    COMPLETE -->|是| FINAL[停止调度<br/>emit run.completed/failed]
+    COMPLETE -->|否| IDLE{有空闲 Agent?}
+    IDLE -->|否| END
+    IDLE -->|是| READY[获取 readyTasks<br/>按优先级排序]
+    READY --> LOOP{遍历 ready 任务}
+    LOOP --> CONFLICT{scope 冲突?}
+    CONFLICT -->|是| LOOP
+    CONFLICT -->|否| AGENT{匹配 Agent?}
+    AGENT -->|否| LOOP
+    AGENT -->|是| LOCK{获取文件锁?}
+    LOCK -->|失败| LOOP
+    LOCK -->|成功| DISPATCH[dispatch: 构建 prompt<br/>→ 创建线程 → 等待完成<br/>→ 解析输出 → 写记忆<br/>→ 动态任务 → 审批检查]
+    DISPATCH --> LOOP
+
+    style START fill:#3fb950,color:#000
+    style FINAL fill:#f85149,color:#fff
+    style DISPATCH fill:#1f6feb,color:#fff
+  </div>
+  <figcaption>图 4: 调度循环流程图</figcaption>
+</div>
+
+<!-- ─────────────────────────────────────────────────── -->
+<!-- Summary -->
+<!-- ─────────────────────────────────────────────────── -->
+
+<h2 id="summary">11. 总结</h2>
+
+<p>
+  Swarm Conductor 的 DAG 引擎将复杂的多 Agent 协作问题简化为一个有向无环图上的拓扑调度问题。
+  其核心设计原则：
+</p>
+
+<ul>
+  <li><strong>声明式依赖：</strong>通过 <code>dependsOn</code> 显式声明任务间顺序，引擎自动推导就绪和阻塞状态</li>
+  <li><strong>终态驱动：</strong>下游解锁条件是「所有依赖到达终态」，而非「所有依赖成功」——失败不会级联阻塞</li>
+  <li><strong>优先级调度：</strong>就绪任务按 priority 降序分派，动态任务自动获得合理优先级</li>
+  <li><strong>层层防御：</strong>DAG scope 冲突检测 + FileLockRegistry 原子锁 + TTL 过期机制，三重保障文件安全</li>
+  <li><strong>自愈能力：</strong>心跳监控 + 自动重启 + 死锁中断 + SQLite 持久化恢复，系统可在中断后继续执行</li>
+  <li><strong>动态扩展：</strong>Agent 输出驱动新任务插入，让编排从静态计划进化为自适应流程</li>
+</ul>
+
+<p style="margin-top:32px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text-secondary);">
+  文件位置：<code>src/dag/types.ts</code> · <code>src/dag/engine.ts</code> · <code>src/conductor/index.ts</code> · <code>src/conductor/dynamic-tasks.ts</code> · <code>src/workspace/file-lock.ts</code><br>
+  测试覆盖：<code>tests/dag.test.ts</code>（16 个测试用例，覆盖状态转换、重试、多跳链、死锁、冲突检测等全部路径）
+</p>
+
+</main>
+
+<script>
+  // Highlight.js
+  hljs.highlightAll();
+
+  // Mermaid
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1f6feb',
+      primaryTextColor: '#c9d1d9',
+      primaryBorderColor: '#30363d',
+      lineColor: '#58a6ff',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#0d1117'
+    }
+  });
+
+  // Active sidebar link highlight on scroll
+  (function() {
+    const sections = document.querySelectorAll('h2[id], h3[id]');
+    const links = document.querySelectorAll('#sidebar nav a');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const link = document.querySelector(`#sidebar nav a[href="#${entry.target.id}"]`);
+          if (link) link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-80px 0px -80% 0px' });
+    sections.forEach(s => observer.observe(s));
+  })();
+</script>
+
+</body>
+</html>
