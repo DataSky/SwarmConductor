@@ -351,13 +351,15 @@ export class WebDashboard {
     this.broadcast({ type: "log", line: clean })
   }
 
-  private broadcast(msg: object): void {
+  protected broadcast(msg: object): void {
     if (this.wss.size === 0) return
     const s = JSON.stringify(msg)
     for (const ws of this.wss) {
       try { ws.send(s) } catch { /* client disconnected */ }
     }
   }
+
+  buildSnapshotPublic(): object { return this.buildSnapshot() }
 
   private buildSnapshot(): object {
     let tokenStats = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0, totalTokens: 0, cacheHitRate: 0 }

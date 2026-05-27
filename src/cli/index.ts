@@ -11,6 +11,7 @@ import { aiGoalToTaskGraph, PRIMARY_PLANNER_MODEL } from "./ai-planner"
 import { InteractiveRunner } from "./interactive"
 import { LiveView, type VerboseLevel } from "./live-view"
 import { WebDashboard } from "../web/server"
+import { StandaloneServer } from "../web/standalone"
 
 // ─── ANSI helpers ─────────────────────────────────────────────────────────────
 
@@ -325,6 +326,31 @@ function buildModelMap(flags: Record<string, string>): Partial<Record<string, st
   return map
 }
 
+// ─── Serve mode (常驻 Web 服务，前端全控) ────────────────────────────────────
+
+async function runServe(flags: Record<string, string>): Promise<void> {
+  const project  = flags["project"] ?? process.cwd()
+  const port     = parseInt(flags["port"] ?? "9000")
+  const basePort = parseInt(flags["base-port"] ?? "8800")
+
+  const server = new StandaloneServer(project, port, basePort)
+  server.start()
+
+  // Open browser
+  setTimeout(() => {
+    const { spawn } = require("child_process") as typeof import("child_process")
+    spawn("open", [`http://localhost:${port}`], { detached: true }).unref()
+  }, 800)
+
+  console.log(`${C.dim}  Press Ctrl+C to stop${C.reset}`)
+
+  // Keep alive
+  await new Promise<void>(resolve => {
+    process.on("SIGINT",  () => { server.stop(); resolve() })
+    process.on("SIGTERM", () => { server.stop(); resolve() })
+  })
+}
+
 // ─── Interactive start ────────────────────────────────────────────────────────
 
 async function runInteractive(config: ConductorConfig, flags: Record<string, string>): Promise<void> {
@@ -393,10 +419,11 @@ function printHelp(): void {
   console.log(`${C.bold}Swarm Conductor v0.1.1${C.reset}`)
   console.log()
   console.log(`${C.bold}Usage${C.reset}`)
-  console.log(`  swarm start                         交互式输入 Goal，自动开浏览器（推荐）`)
-  console.log(`  swarm demo                          验证架构（无需 CodeWhale）`)
-  console.log(`  swarm run --goal "..."              用自然语言描述目标`)
-  console.log(`  swarm run --tasks <file>            从 YAML 任务文件运行`)
+  console.log(`  swarm serve --port 9000          常驻 Web 服务，浏览器全控（推荐）`)
+  console.log(`  swarm start                      交互式输入 Goal，自动开浏览器`)
+  console.log(`  swarm demo                       验证架构（无需 CodeWhale）`)
+  console.log(`  swarm run --goal "..."           用自然语言描述目标`)
+  console.log(`  swarm run --tasks <file>         从 YAML 任务文件运行`)
   console.log()
   console.log(`${C.bold}Options${C.reset}`)
   console.log(`  --goal <text>          自然语言描述任务目标`)
@@ -464,6 +491,9 @@ async function main(): Promise<void> {
       break
     case "start":
       await runInteractive(config, flags)
+      break
+    case "serve":
+      await runServe(flags)
       break
     default:
       printHelp()
