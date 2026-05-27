@@ -65,6 +65,10 @@ export class GoalStore {
     mkdirSync(conductorDir, { recursive: true })
     this.db = new Database(join(conductorDir, "goals.db"))
     this.db.exec(SCHEMA)
+    // Migrate existing databases that predate the conductor_dir column
+    try {
+      this.db.exec(`ALTER TABLE run_meta ADD COLUMN conductor_dir TEXT`)
+    } catch { /* column already exists — ignore */ }
   }
 
   /** Create a new goal, returning its id. */
