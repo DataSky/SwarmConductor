@@ -226,8 +226,24 @@ export class ConductorStore {
     return all[all.length - 1] ?? null
   }
 
-  getContext(tags: string[]): MemoryEntry[] {
-    return this.readMemory("context", tags)
+  getContext(taskScope: string[]): MemoryEntry[] {
+    if (taskScope.length === 0) {
+      // scope=[] tasks (explore/plan/review/verify) can see all run context
+      return this.readMemory("context")
+    }
+    // Exact tag match first — uses the index and covers the common case
+    const exact = this.readMemory("context", taskScope)
+    if (exact.length > 0) return exact
+    // Fallback: prefix/ancestor match in application layer.
+    // Context entry count is small (<100 per run), so a full scan is fine.
+    const all = this.readMemory("context")
+    return all.filter(entry =>
+      entry.tags.some(tag =>
+        taskScope.some(s =>
+          tag === s || tag.startsWith(s + "/") || s.startsWith(tag + "/")
+        )
+      )
+    )
   }
 
   // ── Event log ──────────────────────────────────────────────────────────────

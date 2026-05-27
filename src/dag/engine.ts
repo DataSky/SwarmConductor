@@ -199,10 +199,18 @@ export class TaskDAG {
     return cycle
   }
 
-  /** Checks if two scopes (file lists) overlap — used for conflict detection. */
+  /** Checks if two scopes (file/dir lists) overlap — used for conflict detection.
+   *  A conflict exists when any path in one list is equal to, or is a path-prefix
+   *  ancestor/descendant of, any path in the other list.
+   *  The "+ '/'" guard prevents "/src/auth" from incorrectly matching "/src/authz". */
   scopesConflict(a: string[], b: string[]): boolean {
-    const setA = new Set(a)
-    return b.some(f => setA.has(f))
+    return b.some(pb =>
+      a.some(pa =>
+        pa === pb ||
+        pa.startsWith(pb + "/") ||
+        pb.startsWith(pa + "/")
+      )
+    )
   }
 
   /** Find running tasks whose scope conflicts with given scope. */

@@ -16,9 +16,9 @@ const baseOutput = (): TaskOutput => ({
 })
 
 describe("generateFollowupTasks", () => {
-  it("inserts implement task for each non-empty blocker", () => {
+  it("inserts implement task for each valid blocker", () => {
     const parent = createTaskNode({ type: "implement", title: "Feature A", prompt: "p", scope: ["src/a.ts"] })
-    const output = { ...baseOutput(), blockers: ["- Missing auth middleware", "- DB migration not applied"] }
+    const output = { ...baseOutput(), blockers: ["- Missing auth middleware", "- DB migration: needs to be applied first"] }
 
     const { inserted } = generateFollowupTasks(parent, output, new Set())
     expect(inserted.length).toBe(2)
@@ -126,5 +126,93 @@ describe("ApprovalGate", () => {
     const [d1, d2] = await Promise.all([p1, p2])
     expect(d1).toBe("approved")
     expect(d2).toBe("rejected")
+  })
+})
+
+// ─── dynamic-tasks 误报过滤 ───────────────────────────────────────────────────
+
+describe("generateFollowupTasks — noise filtering", () => {
+  const base = (): TaskOutput => ({
+    summary: "done", changes: [], evidence: [], risks: [], blockers: [], rawText: "",
+  })
+  const parent = createTaskNode({ type: "implement", title: "Feature", prompt: "p", scope: ["/proj/src"] })
+
+  it("blocker ≤15 chars is filtered out (too short to be actionable)", () => {
+    const out = { ...base(), blockers: ["TODO: fix"] }  // length=9
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    expect(inserted.length).toBe(0)
+  })
+
+  it("blocker with no verb and no colon is filtered out", () => {
+    const out = { ...base(), blockers: ["Something problematic here"] }
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    expect(inserted.length).toBe(0)
+  })
+
+  it("blocker with 'missing' keyword passes filter", () => {
+    const out = { ...base(), blockers: ["Missing auth middleware for API routes"] }
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    expect(inserted.length).toBe(1)
+    expect(inserted[0]!.type).toBe("implement")
+  })
+
+  it("blocker with colon passes filter", () => {
+    const out = { ...base(), blockers: ["DB migration: run npm run migrate first"] }
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    expect(inserted.length).toBe(1)
+  })
+
+  it("blocker with 'needs' passes filter", () => {
+    const out = { ...base(), blockers: ["Auth module needs rate-limiting before deploy"] }
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    expect(inserted.length).toBe(1)
+  })
+
+  it("max MAX_DYNAMIC_PER_TASK (2) dynamic tasks per parent", () => {
+    const out = {
+      ...base(),
+      blockers: [
+        "Missing auth middleware for routes one",
+        "Needs database migration script applied here",
+        "Cannot proceed without SSL certificate configured",
+        "Requires Redis connection pool implementation",
+        "Must add rate limiting to prevent abuse scenarios",
+      ],
+    }
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    expect(inserted.length).toBe(2)
+  })
+
+  it("cap applies across blockers AND risks combined", () => {
+    const out = {
+      ...base(),
+      blockers: ["Missing auth middleware for route handling"],  // 1 valid blocker
+      risks:    ["CRITICAL: exposes all user data to public internet"],  // 1 high risk
+    }
+    const { inserted } = generateFollowupTasks(parent, out, new Set())
+    // Combined cap = 2, so both should fit
+    expect(inserted.length).toBe(2)
+
+    // Now add a second risk — should be capped at 2 total
+    const out2 = {
+      ...base(),
+      blockers: ["Missing auth middleware for route handling"],
+      risks:    [
+        "CRITICAL: exposes all user data to public internet",
+        "HIGH: SQL injection vulnerability in user input",
+      ],
+    }
+    const { inserted: ins2 } = generateFollowupTasks(parent, out2, new Set())
+    expect(ins2.length).toBe(2)
+  })
+
+  it("title dedup still works with new filtering", () => {
+    const out = { ...base(), blockers: ["Missing authentication middleware for routes"] }
+    const { inserted: first } = generateFollowupTasks(parent, out, new Set())
+    expect(first.length).toBe(1)
+
+    const { inserted: second, skipped } = generateFollowupTasks(parent, out, new Set([first[0]!.title]))
+    expect(second.length).toBe(0)
+    expect(skipped).toBe(1)
   })
 })

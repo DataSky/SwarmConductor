@@ -15,6 +15,16 @@ const RISK_HIGH_RE = /\b(critical|high|severe|security|data loss|breaking)\b/i
  *  instead of "none" in the output contract sections. */
 const CHINESE_STUB_RE = /^五[个]?[节段](落|章)?[。.]?$/
 
+/** Maximum dynamic tasks (blockers + risks combined) generated per parent task.
+ *  Prevents a single verbose agent output from flooding the DAG. */
+const MAX_DYNAMIC_PER_TASK = 2
+
+/** Minimum blocker text length — short strings are almost always noise. */
+const MIN_BLOCKER_LEN = 15
+
+/** A meaningful blocker must contain a verb or colon indicating actionable work. */
+const MEANINGFUL_BLOCKER_RE = /[:：]|\b(need|needs|must|require|requires|missing|broken|fail|failed|cannot|unable|implement|fix|add|update|create|remove)\b/i
+
 export interface DynamicInsertionResult {
   inserted: TaskNode[]
   skipped: number
@@ -27,12 +37,16 @@ export function generateFollowupTasks(
 ): DynamicInsertionResult {
   const inserted: TaskNode[] = []
   let skipped = 0
+  let dynamicCount = 0  // shared cap: blockers + risks combined
 
   // ── Blockers → implement tasks ───────────────────────────────────────────
   for (const blocker of output.blockers) {
+    if (dynamicCount >= MAX_DYNAMIC_PER_TASK) break
+
     const trimmed = blocker.replace(/^[-*\s]+/, "").trim()
-    // Skip empty strings, the "none" placeholder, and Chinese-language stubs
     if (!trimmed || /^none$/i.test(trimmed) || CHINESE_STUB_RE.test(trimmed)) continue
+    if (trimmed.length <= MIN_BLOCKER_LEN) continue
+    if (!MEANINGFUL_BLOCKER_RE.test(trimmed)) continue
 
     const title = `Fix: ${trimmed.slice(0, 80)}`
     if (existingTitles.has(title)) { skipped++; continue }
@@ -51,13 +65,15 @@ export function generateFollowupTasks(
       priority: completedTask.priority + 5, // slightly higher than parent
       dependsOn: [completedTask.id],
     }))
+    dynamicCount++
   }
 
   // ── High-severity risks → review tasks ──────────────────────────────────
   for (const risk of output.risks) {
+    if (dynamicCount >= MAX_DYNAMIC_PER_TASK) break
     if (!RISK_HIGH_RE.test(risk)) continue
+
     const trimmed = risk.replace(/^[-*\s]+/, "").trim()
-    // Skip empty strings, the "none" placeholder, and Chinese-language stubs
     if (!trimmed || /^none$/i.test(trimmed) || CHINESE_STUB_RE.test(trimmed)) continue
 
     const title = `Review risk: ${trimmed.slice(0, 60)}`
@@ -78,6 +94,7 @@ export function generateFollowupTasks(
       priority: completedTask.priority + 10,
       dependsOn: [completedTask.id],
     }))
+    dynamicCount++
   }
 
   // ── Changes touching test files → verify task ────────────────────────────

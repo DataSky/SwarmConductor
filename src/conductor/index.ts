@@ -14,8 +14,9 @@ import { mkdirSync, existsSync, readFileSync } from "fs"
 // Each sub-agent receives a prompt with clearly delimited sections so the model
 // knows exactly: what its role is, what context it inherits, what it must produce.
 
-const MAX_CONTEXT_CHARS = 8_000   // cap inherited context to avoid prompt bloat
-const MAX_OUTPUT_CHARS  = 80_000  // truncate runaway output before parsing
+const MAX_CONTEXT_ENTRIES = 5    // take the most recent N entries
+const MAX_ENTRY_CHARS     = 1_600 // cap each entry individually, not the whole block
+const MAX_OUTPUT_CHARS    = 80_000  // truncate runaway output before parsing
 
 interface PromptParts {
   task: import("../dag/types").TaskNode
@@ -26,11 +27,6 @@ interface PromptParts {
 
 function buildAgentPrompt(p: PromptParts): string {
   const { task, agentInstructions, projectMapBlock, contextBlock } = p
-
-  // Trim inherited context to avoid unbounded prompt growth
-  const safeContext = contextBlock.length > MAX_CONTEXT_CHARS
-    ? contextBlock.slice(0, MAX_CONTEXT_CHARS) + "\n[…context truncated…]"
-    : contextBlock
 
   return [
     // ── Section 1: Identity ────────────────────────────────────────────────
@@ -50,8 +46,8 @@ function buildAgentPrompt(p: PromptParts): string {
       ? [`<scope>`, ...task.scope.map(s => `  - ${s}`), `</scope>`, ``].join("\n")
       : "",
     // ── Section 4: Inherited context from prior agents ─────────────────────
-    safeContext
-      ? [`<inherited_context>`, safeContext.trim(), `</inherited_context>`, ``].join("\n")
+    contextBlock
+      ? [`<inherited_context>`, contextBlock.trim(), `</inherited_context>`, ``].join("\n")
       : "",
     // ── Section 5: Project map ─────────────────────────────────────────────
     projectMapBlock
@@ -282,6 +278,11 @@ export class Conductor {
       const client = this.agentMgr.getClient(agentId)
 
       const contextEntries = this.store.getContext(task.scope)
+        .slice(-MAX_CONTEXT_ENTRIES)
+        .map(e => e.content.length > MAX_ENTRY_CHARS
+          ? { ...e, content: e.content.slice(0, MAX_ENTRY_CHARS) + "\n[…entry truncated…]" }
+          : e
+        )
       const contextBlock = contextEntries.length > 0
         ? `\n\n## Shared Context from Previous Agents\n${contextEntries.map(e => e.content).join("\n\n")}`
         : ""

@@ -144,3 +144,64 @@ describe("ConductorStore", () => {
     expect(ms).toBeLessThan(2000) // should be well under 2s
   })
 })
+
+// ─── getContext query strategy ────────────────────────────────────────────────
+
+const CTX_TMP = join(process.cwd(), ".test-store-ctx-db")
+
+describe("getContext query strategy", () => {
+  let ctxStore: ConductorStore
+  beforeEach(() => {
+    rmSync(CTX_TMP, { recursive: true, force: true })
+    mkdirSync(CTX_TMP, { recursive: true })
+    ctxStore = new ConductorStore(CTX_TMP, "run-ctx-test")
+    ctxStore.initRun("/proj")
+  })
+  afterEach(() => { ctxStore.close(); rmSync(CTX_TMP, { recursive: true, force: true }) })
+
+  it("scope=[] returns all context entries for the run", () => {
+    ctxStore.writeMemory({ layer: "context", agentId: "a1", taskId: "t1", content: "entry A", tags: ["/proj/src/auth.ts"] })
+    ctxStore.writeMemory({ layer: "context", agentId: "a2", taskId: "t2", content: "entry B", tags: ["/proj/src/user.ts"] })
+    const entries = ctxStore.getContext([])
+    expect(entries.length).toBe(2)
+  })
+
+  it("exact tag match returns matching entry via index", () => {
+    ctxStore.writeMemory({ layer: "context", agentId: "a1", taskId: "t1", content: "auth ctx", tags: ["/proj/src/auth.ts"] })
+    ctxStore.writeMemory({ layer: "context", agentId: "a2", taskId: "t2", content: "user ctx", tags: ["/proj/src/user.ts"] })
+    const entries = ctxStore.getContext(["/proj/src/auth.ts"])
+    expect(entries.length).toBe(1)
+    expect(entries[0]!.content).toBe("auth ctx")
+  })
+
+  it("prefix fallback: directory scope matches file-tagged entries", () => {
+    ctxStore.writeMemory({ layer: "context", agentId: "a1", taskId: "t1", content: "auth impl", tags: ["/proj/src/auth.ts"] })
+    const entries = ctxStore.getContext(["/proj/src"])
+    expect(entries.length).toBe(1)
+    expect(entries[0]!.content).toBe("auth impl")
+  })
+
+  it("prefix fallback: file scope matches directory-tagged entries", () => {
+    ctxStore.writeMemory({ layer: "context", agentId: "a1", taskId: "t1", content: "src explore", tags: ["/proj/src"] })
+    const entries = ctxStore.getContext(["/proj/src/auth.ts"])
+    expect(entries.length).toBe(1)
+    expect(entries[0]!.content).toBe("src explore")
+  })
+
+  it("does not return context from a different run", () => {
+    ctxStore.writeMemory({ layer: "context", agentId: "a1", taskId: "t1", content: "run1 ctx", tags: ["/proj/src"] })
+    ctxStore.close()
+    const store2 = new ConductorStore(CTX_TMP, "run-ctx-other")
+    store2.initRun("/proj")
+    const entries = store2.getContext([])
+    expect(entries.length).toBe(0)
+    store2.close()
+    ctxStore = new ConductorStore(CTX_TMP, "run-ctx-test")
+  })
+
+  it("prefix fallback does not match unrelated paths", () => {
+    ctxStore.writeMemory({ layer: "context", agentId: "a1", taskId: "t1", content: "authz ctx", tags: ["/proj/src/authz.ts"] })
+    const entries = ctxStore.getContext(["/proj/src/auth"])
+    expect(entries.length).toBe(0)
+  })
+})

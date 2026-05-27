@@ -29,7 +29,7 @@ export function goalToTaskGraph(goal: string, projectPath: string): GoalPlan {
       `Identify what needs to change and what risks exist.`,
       outputSuffix,
     ].join("\n"),
-    scope: [projectPath],
+    scope: [],  // read-only: no file lock needed
     priority: 100,
   })
 
@@ -84,7 +84,7 @@ export function goalToTaskGraph(goal: string, projectPath: string): GoalPlan {
       `Score each finding 1-10 by severity.`,
       outputSuffix,
     ].join("\n"),
-    scope: [projectPath],
+    scope: [],  // read-only: no file lock needed
     priority: 75,
     dependsOn: [implement.id],
   })
@@ -103,7 +103,7 @@ export function goalToTaskGraph(goal: string, projectPath: string): GoalPlan {
       `- No regressions introduced`,
       outputSuffix,
     ].join("\n"),
-    scope: [projectPath],
+    scope: [],  // read-only: no file lock needed
     priority: 70,
     dependsOn: [implement.id, review.id],
   })

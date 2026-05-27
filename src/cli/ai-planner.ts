@@ -1,5 +1,6 @@
 import { createTaskNode } from "../dag/engine"
 import type { TaskNode, TaskType, AgentRole } from "../dag/types"
+import { scanProjectContext } from "./project-scanner"
 
 // ─── AI Orchestrator — DMXAPI with DeepSeek fallback ─────────────────────────
 // Primary:  claude-opus-4-7 via DMXAPI
@@ -62,7 +63,8 @@ Rules:
 `
 
 export async function aiGoalToTaskGraph(goal: string, projectPath: string): Promise<GoalPlan> {
-  const userMsg = `Goal: ${goal}\nProject path: ${projectPath}`
+  const projectCtx = scanProjectContext(projectPath)
+  const userMsg = `Goal: ${goal}\nProject path: ${projectPath}\n\n${projectCtx}`
 
   let raw: string
   try {
@@ -123,8 +125,9 @@ async function callPlanner(model: string, userMsg: string): Promise<string> {
 }
 
 function buildGraph(plan: PlannerResponse, projectPath: string): GoalPlan {
-  const titleToNode = new Map<string, TaskNode>()
-  const rawSpecs    = plan.tasks
+  const titleToNode    = new Map<string, TaskNode>()
+  const titleToNodeNorm = new Map<string, TaskNode>()  // lowercase+trim for fuzzy match
+  const rawSpecs       = plan.tasks
 
   for (const spec of rawSpecs) {
     const node = createTaskNode({
@@ -137,17 +140,26 @@ function buildGraph(plan: PlannerResponse, projectPath: string): GoalPlan {
       forkContext: spec.forkContext ?? false,
     })
     titleToNode.set(spec.title, node)
+    titleToNodeNorm.set(spec.title.toLowerCase().trim(), node)
   }
 
-  // Wire dependsOn by title → ID
+  // Wire dependsOn by title → ID, with normalized fallback
   for (const spec of rawSpecs) {
     if (!spec.dependsOn?.length) continue
     const node = titleToNode.get(spec.title)!
     for (const depTitle of spec.dependsOn) {
-      const dep = titleToNode.get(depTitle)
+      let dep = titleToNode.get(depTitle)
+      if (!dep) {
+        dep = titleToNodeNorm.get(depTitle.toLowerCase().trim())
+        if (dep) {
+          console.warn(`[planner] dependsOn normalized: "${depTitle}" → "${dep.title}"`)
+        }
+      }
       if (dep) {
         node.dependsOn.push(dep.id)
         dep.blocks.push(node.id)
+      } else {
+        console.warn(`[planner] dependsOn not found: "${depTitle}" in task "${spec.title}" — dependency skipped`)
       }
     }
   }
