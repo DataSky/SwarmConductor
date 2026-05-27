@@ -963,6 +963,9 @@ body {
     <button onclick="openHistory()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:2px 6px;line-height:1" title="History">☰</button>
     <span class="brand">SWARM</span>
     <span class="run-id" id="run-id">—</span>
+    <span id="project-badge" style="color:var(--dim);font-size:11px;background:var(--bg3);
+      padding:2px 8px;border-radius:4px;border:1px solid var(--border);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px" title=""></span>
     <span class="badge badge-phase" id="phase-badge">Phase 0</span>
     <div class="progress-bar">
       <div id="prog-bar"><div id="prog-fill" style="width:0%"></div></div>
@@ -1113,10 +1116,19 @@ function applyServerState(msg) {
   state.tabs       = msg.tabs       ?? []
   state.recentGoals= msg.recentGoals ?? []
 
-  // Show project path in launch overlay
   if (msg.project) {
+    // Update launch overlay
     const el = document.getElementById('launch-project')
     if (el) el.textContent = msg.project
+
+    // Update header badge — show only the last folder name for brevity
+    const badge = document.getElementById('project-badge')
+    if (badge) {
+      const parts = msg.project.replace(/\\/g, '/').split('/')
+      const name  = parts[parts.length - 1] || parts[parts.length - 2] || msg.project
+      badge.textContent = '📁 ' + name
+      badge.title = msg.project  // full path on hover
+    }
   }
 
   // Render tab bar
