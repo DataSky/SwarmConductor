@@ -4,3 +4,6 @@ dist/
 .conductor-bench/
 .test-*/
 *.log
+
+.DS_Store
+src/.DS_Store
