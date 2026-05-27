@@ -128,13 +128,14 @@ export class TaskDAG {
     const task = this.mustGet(taskId)
     task.error = error
     task.assignedTo = null
-    task.completedAt = Date.now()
 
     if (task.retryCount < task.maxRetries) {
       task.retryCount++
       task.error = null
+      task.startedAt = null
       this.transition(taskId, "ready")
     } else {
+      task.completedAt = Date.now()
       this.transition(taskId, "failed")
     }
   }

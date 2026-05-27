@@ -128,7 +128,7 @@ export class Conductor {
   private conductorDir: string
   private tickInterval: ReturnType<typeof setInterval> | null = null
   private eventListeners: Array<(e: ConductorEvent) => void> = []
-  private streamListeners: Array<(agentId: string, task: TaskNode, delta: string) => void> = []
+  private streamListeners: Array<(agentId: string, task: TaskNode, delta: string, model: string | null) => void> = []
   private agentInstructions: string
   readonly runId: string
 
@@ -254,30 +254,31 @@ export class Conductor {
 
   private async dispatch(agentId: string, task: TaskNode): Promise<void> {
     this.activeDispatches++
-    const client = this.agentMgr.getClient(agentId)
-
-    const contextEntries = this.store.getContext(task.scope)
-    const contextBlock = contextEntries.length > 0
-      ? `\n\n## Shared Context from Previous Agents\n${contextEntries.map(e => e.content).join("\n\n")}`
-      : ""
-    const projectMap = this.store.getProjectMap()
-    const projectMapBlock = projectMap ? `\n\n## Project Map\n${projectMap.content}` : ""
-
-    const fullPrompt = buildAgentPrompt({
-      task,
-      agentInstructions: this.agentInstructions,
-      projectMapBlock,
-      contextBlock,
-    })
-
-    // Mark busy synchronously before any await to prevent double-dispatch
-    // within the same scheduler tick.
-    this.agentMgr.markBusy(agentId, task.id, "pending")
-    this.dag.assign(task.id, agentId)
-
     try {
-      const thread = await client.createThread()
-      this.agentMgr.markBusy(agentId, task.id, thread.id)
+      const client = this.agentMgr.getClient(agentId)
+
+      const contextEntries = this.store.getContext(task.scope)
+      const contextBlock = contextEntries.length > 0
+        ? `\n\n## Shared Context from Previous Agents\n${contextEntries.map(e => e.content).join("\n\n")}`
+        : ""
+      const projectMap = this.store.getProjectMap()
+      const projectMapBlock = projectMap ? `\n\n## Project Map\n${projectMap.content}` : ""
+
+      const fullPrompt = buildAgentPrompt({
+        task,
+        agentInstructions: this.agentInstructions,
+        projectMapBlock,
+        contextBlock,
+      })
+
+      // Mark busy synchronously before any await to prevent double-dispatch
+      // within the same scheduler tick.
+      this.agentMgr.markBusy(agentId, task.id, "pending")
+      this.dag.assign(task.id, agentId)
+      const thread = await client.createThread(
+        this.config.modelMap[task.role] ?? undefined
+      )
+      this.agentMgr.markBusy(agentId, task.id, thread.id, thread.model)
 
       const turn = await client.postTurn(thread.id, {
         prompt: fullPrompt,
@@ -285,10 +286,12 @@ export class Conductor {
         fork_context: task.forkContext,
       })
 
+      const agentModel = this.agentMgr.getInstance(agentId)?.model ?? null
+
       const { fullText: rawText, status, usage } = await client.waitForTurn(
         thread.id, turn.id,
         this.streamListeners.length > 0
-          ? (delta) => { for (const cb of this.streamListeners) cb(agentId, task, delta) }
+          ? (delta) => { for (const cb of this.streamListeners) cb(agentId, task, delta, agentModel) }
           : undefined,
         this.config.fileLockTtlMs,
       )
@@ -407,7 +410,7 @@ export class Conductor {
   onEvent(cb: (e: ConductorEvent) => void): void { this.eventListeners.push(cb) }
 
   // Subscribe to real-time token deltas from running agents
-  onStream(cb: (agentId: string, task: TaskNode, delta: string) => void): void {
+  onStream(cb: (agentId: string, task: TaskNode, delta: string, model: string | null) => void): void {
     this.streamListeners.push(cb)
   }
 

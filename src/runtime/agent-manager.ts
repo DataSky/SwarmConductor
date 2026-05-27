@@ -26,6 +26,7 @@ export class AgentProcessManager {
       pid: null,
       currentTaskId: null,
       threadId: null,
+      model: this.config.modelMap[role] ?? null,
       startedAt: Date.now(),
       lastHeartbeat: Date.now(),
     }
@@ -91,11 +92,12 @@ export class AgentProcessManager {
     return this.idleInstances().filter(i => i.role === role)
   }
 
-  markBusy(agentId: string, taskId: string, threadId: string): void {
+  markBusy(agentId: string, taskId: string, threadId: string, model?: string): void {
     const inst = this.mustGet(agentId)
     inst.status = "busy"
     inst.currentTaskId = taskId
     inst.threadId = threadId
+    if (model) inst.model = model
     inst.lastHeartbeat = Date.now()
   }
 

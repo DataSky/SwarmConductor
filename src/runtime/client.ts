@@ -15,6 +15,7 @@ export interface CWThread {
   workspace: string
   mode: string
   auto_approve: boolean
+  model: string
 }
 
 export interface CWTurn {
@@ -79,11 +80,13 @@ export class CodeWhaleClient {
     throw new Error(`CodeWhale on ${this.base} did not become ready within ${timeoutMs}ms`)
   }
 
-  async createThread(): Promise<CWThread> {
+  async createThread(model?: string): Promise<CWThread> {
+    const body: Record<string, unknown> = {}
+    if (model) body["model"] = model
     const r = await fetch(`${this.base}/v1/threads`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({}),
+      body: JSON.stringify(body),
     })
     if (!r.ok) throw new Error(`createThread failed: ${r.status} ${await r.text()}`)
     return r.json() as Promise<CWThread>

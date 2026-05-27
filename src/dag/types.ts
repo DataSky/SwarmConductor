@@ -93,6 +93,7 @@ export interface AgentInstance {
   pid: number | null
   currentTaskId: string | null
   threadId: string | null     // CodeWhale thread ID for current task
+  model: string | null        // model used for the current/last thread
   startedAt: number
   lastHeartbeat: number
 }
@@ -136,6 +137,8 @@ export interface ConductorConfig {
   heartbeatTimeoutMs: number
   maxAgentRestarts: number
   dynamicTasks: boolean
+  /** Per-role model override. Omitted roles use codewhale's global config. */
+  modelMap: Partial<Record<AgentRole, string>>
 }
 
 export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<ConductorConfig, "projectPath">): ConductorConfig {
@@ -151,6 +154,7 @@ export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<Conduct
     heartbeatTimeoutMs: 45_000,
     maxAgentRestarts: 3,
     dynamicTasks: true,
+    modelMap: {},
     ...overrides,
   }
 }

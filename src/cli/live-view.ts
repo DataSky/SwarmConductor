@@ -1,6 +1,7 @@
 import { createInterface } from "readline"
 import type { Conductor } from "../conductor"
 import type { TaskNode } from "../dag/types"
+import { createTaskNode } from "../dag/engine"
 
 // ─── ANSI ─────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,25 @@ const STATUS_ICON: Record<string, string> = {
 const TYPE_SHORT: Record<string, string> = {
   explore: "exp", plan: "pln", implement: "imp",
   review: "rev", verify: "vfy", merge: "mrg",
+}
+
+const MODEL_SHORT: Record<string, string> = {
+  "deepseek-v4-pro":               "dv4p",
+  "deepseek-v4-flash":             "dv4f",
+  "deepseek-v3":                   "dv3",
+  "deepseek-reasoner":             "r1",
+  "claude-opus-4-7":               "opus",
+  "claude-sonnet-4-6":             "son",
+  "claude-haiku-4-5-20251001":     "hku",
+  "gpt-4.1":                       "g41",
+  "gpt-4.1-mini":                  "g4m",
+  "gpt-4o":                        "4o",
+  "gemini-2.5-pro":                "g25p",
+}
+
+function modelShort(model: string | null | undefined): string {
+  if (!model) return ""
+  return MODEL_SHORT[model] ?? model.split(/[-/]/).slice(-1)[0]!.slice(0, 5)
 }
 
 export type VerboseLevel = "quiet" | "summary" | "stream"
@@ -83,6 +103,7 @@ interface AgentSlot {
   scope:      string[]
   startedAt:  number
   lastLine:   string
+  model:      string | null
   tokenUsage: { input: number; output: number } | null
 }
 
@@ -122,6 +143,10 @@ export class LiveView {
   private rl:   ReturnType<typeof createInterface> | null = null
   private exitHandlers: Array<() => void> = []
 
+  // Pause / intervention state
+  private paused     = false
+  private pauseInput = false  // true while readline prompt is active
+
   // Run-level state
   private runStartMs   = 0
   private riskCount    = 0
@@ -157,8 +182,16 @@ export class LiveView {
       this.fullRedraw()
     })
 
-    this.conductor.onStream((agentId, task, delta) => this.handleDelta(agentId, task, delta))
+    this.conductor.onStream((agentId, task, delta, model) => this.handleDelta(agentId, task, delta, model))
     this.conductor.onEvent(e => this.handleEvent(e.kind, e.payload))
+
+    // Raw keypress for pause key — only in TUI mode with a real TTY
+    if (this.isTUI && process.stdin.isTTY) {
+      process.stdin.setRawMode(true)
+      process.stdin.resume()
+      process.stdin.setEncoding("utf8")
+      process.stdin.on("data", this.onKeypress)
+    }
 
     this.fullRedraw()
     this.tick = setInterval(() => {
@@ -176,7 +209,84 @@ export class LiveView {
     this.rl?.close()
     for (const off of this.exitHandlers) off()
     this.exitHandlers = []
+    if (process.stdin.isTTY) {
+      process.stdin.off("data", this.onKeypress)
+      try { process.stdin.setRawMode(false) } catch { /* ok */ }
+    }
     if (this.isTUI) process.stdout.write(`\x1b[?25h\x1b[${this.th};0H\n`)
+  }
+
+  // Arrow function so `this` is bound when used as event listener
+  private onKeypress = (key: string): void => {
+    // Ctrl+C → always clean up
+    if (key === "") { this.stop(); process.exit(0) }
+    // p → toggle pause (ignore if a readline prompt is already active)
+    if ((key === "p" || key === "P") && !this.pauseInput) {
+      this.togglePause()
+    }
+  }
+
+  private togglePause(): void {
+    if (!this.paused) {
+      this.paused = true
+      this.conductor.stopScheduler()
+      this.pushLog(`${C.yellow}⏸  PAUSED — scheduler stopped${C.reset}`)
+      this.renderFooter()
+      this.promptIntervention()
+    }
+    // resume is handled at the end of promptIntervention
+  }
+
+  private promptIntervention(): void {
+    if (!process.stdin.isTTY) { this.resume(); return }
+    this.pauseInput = true
+
+    // Temporarily exit raw mode so readline can work normally
+    try { process.stdin.setRawMode(false) } catch { /* ok */ }
+
+    const col = this.tw >= 140 ? (this.lw + this.mw + 6) : (this.lw + 2)
+    const promptRow = this.logBottom()
+    if (this.isTUI) process.stdout.write(`\x1b[${promptRow};${col}H${C.yellow}⏸ 干预指令 (回车跳过): ${C.reset}`)
+
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: false })
+    this.rl = rl
+    rl.once("line", (input: string) => {
+      rl.close()
+      this.rl = null
+      this.pauseInput = false
+
+      const trimmed = input.trim()
+      if (trimmed) {
+        const injected = createTaskNode({
+          type: "implement",
+          title: trimmed.slice(0, 80),
+          prompt: [
+            `[Human intervention injected during run]`,
+            ``,
+            trimmed,
+            `\n---\nYour output MUST contain: ## SUMMARY, ## CHANGES, ## EVIDENCE, ## RISKS, ## BLOCKERS`,
+          ].join("\n"),
+          scope: [],
+          priority: 999,
+        })
+        this.conductor.taskDag.addTask(injected)
+        this.pushLog(`${C.cyan}⊕ 干预任务已插入: "${trimmed.slice(0, 60)}"${C.reset}`)
+      }
+
+      this.resume()
+    })
+  }
+
+  private resume(): void {
+    this.paused = false
+    // Re-engage raw mode
+    if (process.stdin.isTTY) {
+      try { process.stdin.setRawMode(true) } catch { /* ok */ }
+    }
+    this.conductor.startScheduler()
+    this.pushLog(`${C.green}▶  Resumed${C.reset}`)
+    this.leftDirty = true
+    this.flushDirty()
   }
 
   promptFollowup(_task: TaskNode): Promise<string> {
@@ -257,6 +367,7 @@ export class LiveView {
           taskId, title: task.title, type: task.type,
           scope: task.scope,
           startedAt: Date.now(), lastLine: "",
+          model: null,
           tokenUsage: null,
         })
         if (this.verbose === "stream") {
@@ -309,8 +420,10 @@ export class LiveView {
 
   // ── Token stream ──────────────────────────────────────────────────────────
 
-  private handleDelta(agentId: string, task: TaskNode, delta: string): void {
+  private handleDelta(agentId: string, task: TaskNode, delta: string, model: string | null): void {
     const slot = this.slots.get(agentId)
+    // Update model on first delta (thread is now confirmed open)
+    if (slot && model && !slot.model) slot.model = model
     const buf  = (this.tokBuf.get(agentId) ?? "") + delta
     this.tokBuf.set(agentId, buf)
 
@@ -577,10 +690,15 @@ export class LiveView {
       const tag    = `${C.dim}[${(TYPE_SHORT[slot.type] ?? slot.type).slice(0, 3)}]${C.reset}`
       const task   = this.conductor.taskDag.getTask(slot.taskId)
       const tokU   = task?.tokenUsage
+      const mShort = modelShort(slot.model)
+      const mLabel = mShort ? ` ${C.dim}${C.yellow}${mShort}${C.reset}` : ""
 
-      // Line 1: task title + elapsed
-      const title  = trunc(`${C.bold}${C.cyan}● ${C.reset}${tag} ${slot.title}`, this.mw - 8)
-      process.stdout.write(`\x1b[${row};${startCol}H${pad(title, this.mw - 1)}`)
+      // Line 1: task title + model tag (right-aligned within card width)
+      const titleStr = `${C.bold}${C.cyan}● ${C.reset}${tag} ${slot.title}`
+      const titleBare = stripAnsi(titleStr)
+      const mLabelBare = mShort ? ` ${mShort}` : ""
+      const titlePad = Math.max(0, this.mw - 1 - titleBare.length - mLabelBare.length)
+      process.stdout.write(`\x1b[${row};${startCol}H${titleStr}${" ".repeat(titlePad)}${mLabel} ${C.reset}`)
       row++
 
       // Line 2: elapsed + scope file
@@ -670,12 +788,14 @@ export class LiveView {
     const s   = this.conductor.status()
     process.stdout.write(`\x1b[${row};0H${C.dim}${"─".repeat(this.tw)}${C.reset}\n`)
 
-    if (s.pendingApprovals > 0) {
+    if (this.paused) {
+      process.stdout.write(` ${C.yellow}${C.bold}⏸  PAUSED${C.reset}${C.yellow} — 输入干预指令后回车，空回车继续运行${C.reset}`)
+    } else if (s.pendingApprovals > 0) {
       process.stdout.write(` ${C.yellow}${C.bold}⏸  Approval required — type y/n${C.reset}`)
     } else {
-      const mode = this.verbose
+      const mode  = this.verbose
       const runId = this.conductor.runId.slice(0, 18)
-      process.stdout.write(` ${C.dim}Ctrl+C stop  ·  mode: ${mode}  ·  run: ${runId}${C.reset}`)
+      process.stdout.write(` ${C.dim}Ctrl+C stop  ·  p pause  ·  mode: ${mode}  ·  run: ${runId}${C.reset}`)
     }
   }
 }

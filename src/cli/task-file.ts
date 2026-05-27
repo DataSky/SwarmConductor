@@ -26,6 +26,7 @@ interface TaskFile {
   goal?: string
   agents?: number
   auto_approve?: boolean
+  models?: Partial<Record<string, string>>
   phases: RawPhase[]
 }
 
@@ -34,6 +35,7 @@ export interface ParseResult {
   goal: string
   agents: number | null
   autoApprove: boolean | null
+  modelMap: Partial<Record<string, string>>
 }
 
 // ─── YAML parser (indentation-aware, handles task file subset) ────────────────
@@ -164,6 +166,24 @@ function parseTaskYAML(text: string): TaskFile {
         case "auto_approve": result.auto_approve = val === "true"; break
       }
       i++
+      continue
+    }
+
+    if (t === "models:") {
+      result.models = {}
+      i++
+      while (i < lines.length) {
+        const ml = lines[i]!
+        if (indent(ml) === 0) break
+        const mt = ml.text.trimStart()
+        const mc = mt.indexOf(": ")
+        if (mc !== -1) {
+          const role = mt.slice(0, mc).trim()
+          const model = mt.slice(mc + 2).trim().replace(/^["']|["']$/g, "")
+          result.models[role] = model
+        }
+        i++
+      }
       continue
     }
 
@@ -312,6 +332,7 @@ export function loadTaskFile(filePath: string): ParseResult {
     goal: raw.goal ?? "",
     agents: raw.agents ?? null,
     autoApprove: raw.auto_approve ?? null,
+    modelMap: raw.models ?? {},
   }
 }
 

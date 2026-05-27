@@ -220,6 +220,8 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
     preamble = result.goal ? `Goal: ${result.goal}\n` : ""
     if (result.agents && !flags["agents"]) config.maxConcurrentAgents = result.agents
     if (result.autoApprove !== null && !flags["auto-approve"]) config.autoApprove = result.autoApprove
+    // YAML modelMap is the base; CLI flags override per-role
+    config.modelMap = { ...result.modelMap, ...buildModelMap(flags) }
   } else {
     const noAiPlan = flags["no-ai-plan"] === "true"
     if (noAiPlan) {
@@ -286,6 +288,30 @@ async function runLive(config: ConductorConfig, flags: Record<string, string>): 
   await conductor.shutdown()
 }
 
+// ─── Model map builder ────────────────────────────────────────────────────────
+
+function buildModelMap(flags: Record<string, string>): Partial<Record<string, string>> {
+  const map: Partial<Record<string, string>> = {}
+  const roleKeys: Record<string, string> = {
+    "model-worker":      "*",          // sets all roles at once
+    "model-explore":     "explore",
+    "model-plan":        "plan",
+    "model-impl":        "implementer",
+    "model-review":      "review",
+    "model-verify":      "verifier",
+  }
+  // Apply --model-worker first (lowest precedence)
+  if (flags["model-worker"]) {
+    for (const role of ["explore","plan","implementer","review","verifier","general"])
+      map[role] = flags["model-worker"]
+  }
+  // Per-role flags override
+  for (const [flag, role] of Object.entries(roleKeys)) {
+    if (role !== "*" && flags[flag]) map[role] = flags[flag]!
+  }
+  return map
+}
+
 // ─── Help ─────────────────────────────────────────────────────────────────────
 
 function printHelp(): void {
@@ -308,6 +334,11 @@ function printHelp(): void {
   console.log(`  --output <path>        JSON 报告保存路径`)
   console.log(`  --no-ai-plan           跳过 AI 规划，使用内置静态任务模板`)
   console.log(`  --dynamic-tasks false  关闭动态任务生成`)
+  console.log(`  --model-worker <m>     所有 sub-agent 使用同一模型`)
+  console.log(`  --model-explore <m>    explore role 使用的模型`)
+  console.log(`  --model-impl <m>       implement role 使用的模型`)
+  console.log(`  --model-review <m>     review role 使用的模型`)
+  console.log(`  --model-verify <m>     verify role 使用的模型`)
   console.log(`  --bin <path>           CodeWhale 二进制路径`)
   console.log()
   console.log(`${C.bold}Examples${C.reset}`)
@@ -344,6 +375,7 @@ async function main(): Promise<void> {
     autoApprove: flags["auto-approve"] === "true",
     codewhalebin: flags["bin"] ?? "codewhale",
     dynamicTasks: flags["dynamic-tasks"] !== "false",
+    modelMap: buildModelMap(flags),
   })
 
   switch (command) {
