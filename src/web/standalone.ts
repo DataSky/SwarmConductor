@@ -353,6 +353,7 @@ export class StandaloneServer {
 
   private serveState(): object {
     return {
+      project: this.projectPath,
       tabs: [...this.slots.values()].map(s => ({
         tabId:    s.tabId,
         runId:    s.runId,

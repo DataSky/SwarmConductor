@@ -839,7 +839,7 @@ body {
   <div id="launch-box">
     <div id="launch-brand">SWARM</div>
     <div id="launch-subtitle">Multi-agent coding swarm</div>
-    <div id="launch-project" id="launch-project-text">Project: —</div>
+    <div id="launch-project">Project: —</div>
     <div id="launch-goal-label">Goal</div>
     <textarea id="launch-goal" placeholder="Describe what you want the agents to do..." rows="4"></textarea>
     <div id="launch-error"></div>
@@ -1034,6 +1034,12 @@ function applyServerState(msg) {
   state.serveMode = true
   state.tabs       = msg.tabs       ?? []
   state.recentGoals= msg.recentGoals ?? []
+
+  // Show project path in launch overlay
+  if (msg.project) {
+    const el = document.getElementById('launch-project')
+    if (el) el.textContent = msg.project
+  }
 
   // Render tab bar
   renderTabBar()
