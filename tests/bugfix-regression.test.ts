@@ -115,9 +115,10 @@ describe("dispatch pre-await markBusy (Bug 6)", () => {
     const src = await Bun.file("src/conductor/index.ts").text()
     const dispatchFn = src.slice(src.indexOf("private async dispatch("))
     const markBusyPos  = dispatchFn.indexOf("markBusy(agentId")
-    const firstAwaitPos = dispatchFn.indexOf("await client.createThread()")
+    const firstAwaitPos = dispatchFn.indexOf("await client.createThread(")
     // markBusy must come before the first await
     expect(markBusyPos).toBeGreaterThan(0)
+    expect(firstAwaitPos).toBeGreaterThan(0)
     expect(markBusyPos).toBeLessThan(firstAwaitPos)
   })
 })
