@@ -5,6 +5,8 @@ import { WebDashboard } from "./server"
 import { GoalStore } from "./goal-store"
 import { aiGoalToTaskGraph } from "../cli/ai-planner"
 import { goalToTaskGraph } from "../cli/goal-planner"
+import { WarmPool } from "../runtime/warm-pool"
+import { AgentProcessManager } from "../runtime/agent-manager"
 // Embed ui.html at compile time so the binary is fully self-contained
 import UI_HTML from "./ui.html" with { type: "text" }
 import { mkdirSync } from "fs"
@@ -71,6 +73,11 @@ export class StandaloneServer {
   private server: ReturnType<typeof Bun.serve> | null = null
   // Port pool: each run gets 20 ports; released when run ends
   private usedPortBlocks = new Set<number>()  // block indices in use
+  private warmPool: WarmPool
+
+  // Warm pool size and its dedicated port range sit below the run port blocks.
+  // Default: 3 warm agents on ports (baseAgentPort-6)..(baseAgentPort-1)
+  private static readonly WARM_POOL_SIZE = 3
 
   constructor(
     private projectPath: string,
@@ -80,6 +87,13 @@ export class StandaloneServer {
     const conductorDir = join(projectPath, ".conductor")
     mkdirSync(conductorDir, { recursive: true })
     this.goalStore = new GoalStore(conductorDir)
+    const warmBasePort = baseAgentPort - StandaloneServer.WARM_POOL_SIZE * 2
+    this.warmPool = new WarmPool({
+      projectPath,
+      codewhalebin: "codewhale",
+      poolSize: StandaloneServer.WARM_POOL_SIZE,
+      basePort: warmBasePort,
+    })
   }
 
   private allocatePortBlock(): number {
@@ -101,6 +115,10 @@ export class StandaloneServer {
     // Mark stale running rows from previous crashed sessions
     const stale = this.goalStore.reconcileStaleRuns()
     if (stale > 0) console.log(`  [goals.db] marked ${stale} stale run(s) as interrupted`)
+
+    // Pre-warm agent pool in the background so the first run has agents ready instantly
+    this.warmPool.start()
+    console.log(`  [warm-pool] pre-warming ${StandaloneServer.WARM_POOL_SIZE} agents in background`)
 
     const self = this
     this.server = Bun.serve({
@@ -124,6 +142,7 @@ export class StandaloneServer {
 
   stop(): void {
     for (const slot of this.slots.values()) slot.cleanup()
+    this.warmPool.stop()
     this.goalStore.close()
     this.server?.stop()
   }
@@ -377,9 +396,21 @@ export class StandaloneServer {
       modelMap,
     })
 
-    // ── Planning phase ───────────────────────────────────────────────────────
+    // ── Planning phase + warm agent acquire (run in parallel) ───────────────
     // Broadcast planning state to client BEFORE we block on AI planning
     this.broadcast({ type: "run.planning", tabId, goalText: resolvedGoalText })
+
+    const warmSlots = this.warmPool.acquire(agents)
+    const warmAcquired = warmSlots.length
+    if (warmAcquired > 0) {
+      console.log(`  [warm-pool] acquired ${warmAcquired} pre-warmed agent(s) for run ${tabId}`)
+    }
+
+    // Heartbeat every 5 s so the browser can show elapsed planning time
+    const planStart = Date.now()
+    const planningTimer = setInterval(() => {
+      this.broadcast({ type: "run.planning.heartbeat", tabId, elapsedMs: Date.now() - planStart })
+    }, 5_000)
 
     let taskNodes
     try {
@@ -394,9 +425,15 @@ export class StandaloneServer {
         }
       }
     } catch (err) {
+      clearInterval(planningTimer)
+      // Return warm slots to pool on planning failure
+      for (const slot of warmSlots) {
+        try { slot.process.kill() } catch { /* ignore */ }
+      }
       sendError(`Planning failed: ${(err as Error).message}`, tabId)
       return
     }
+    clearInterval(planningTimer)
 
     // ── Conductor setup ──────────────────────────────────────────────────────
     const conductor = new Conductor(config)
@@ -432,10 +469,18 @@ export class StandaloneServer {
       this.broadcast({ type: "snapshot", tabId, ...snap })
     } catch { /* ok */ }
 
-    // ── Spawn agents ─────────────────────────────────────────────────────────
+    // ── Inject warm agents, then spawn any remaining needed ──────────────────
     try {
-      const roles = Array(Math.min(agents, taskNodes.length)).fill("general") as "general"[]
-      await conductor.spawnAgents(roles)
+      const agentMgr = (conductor as unknown as { agentMgr: AgentProcessManager }).agentMgr
+      for (const ws of warmSlots) {
+        agentMgr.adopt(ws.instance, ws.process, ws.client)
+      }
+      const totalNeeded = Math.min(agents, taskNodes.length)
+      const stillNeeded = totalNeeded - warmAcquired
+      if (stillNeeded > 0) {
+        const roles = Array(stillNeeded).fill("general") as "general"[]
+        await conductor.spawnAgents(roles)
+      }
     } catch (err) {
       sendError(`Agent spawn failed: ${(err as Error).message}`, tabId)
       slot.status = "failed"
