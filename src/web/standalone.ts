@@ -5,9 +5,10 @@ import { WebDashboard } from "./server"
 import { GoalStore } from "./goal-store"
 import { aiGoalToTaskGraph } from "../cli/ai-planner"
 import { goalToTaskGraph } from "../cli/goal-planner"
-import { readFileSync } from "fs"
-import { join } from "path"
+// Embed ui.html at compile time so the binary is fully self-contained
+import UI_HTML from "./ui.html" with { type: "text" }
 import { mkdirSync } from "fs"
+import { join } from "path"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,8 +106,7 @@ export class StandaloneServer {
       new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json" } })
 
     if (url.pathname === "/" || url.pathname === "/index.html") {
-      const html = readFileSync(join(import.meta.dir, "ui.html"), "utf8")
-      return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } })
+      return new Response(UI_HTML as unknown as string, { headers: { "Content-Type": "text/html; charset=utf-8" } })
     }
     if (url.pathname === "/api/goals") {
       return json(this.goalStore.listGoals(this.projectPath))

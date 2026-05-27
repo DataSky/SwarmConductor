@@ -1,8 +1,8 @@
 import type { Conductor } from "../conductor"
 import type { ConductorEvent, TaskNode } from "../dag/types"
 import { createTaskNode } from "../dag/engine"
-import { readFileSync } from "fs"
-import { join } from "path"
+// Embed ui.html at compile time so the binary is fully self-contained
+import UI_HTML from "./ui.html" with { type: "text" }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,8 +95,7 @@ export class WebDashboard {
 
   private handleHTTP(_req: Request, url: URL): Response {
     if (url.pathname === "/" || url.pathname === "/index.html") {
-      const html = readFileSync(join(import.meta.dir, "ui.html"), "utf8")
-      return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } })
+      return new Response(UI_HTML as unknown as string, { headers: { "Content-Type": "text/html; charset=utf-8" } })
     }
 
     if (url.pathname === "/api/state") {
