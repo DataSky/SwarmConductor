@@ -1,0 +1,64 @@
+.phaseGroup   { margin-bottom: 4px; }
+.phaseLabel   {
+  padding: 4px 12px 2px;
+  font-size: 10px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.phaseLabel::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.taskRow {
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+}
+.taskRow:hover  { background: var(--bg3); }
+.selected       { background: rgba(88,166,255,0.08); border-left-color: var(--cyan); }
+.running        { border-left-color: var(--cyan); }
+.done           { opacity: 0.7; }
+.failed         { border-left-color: var(--red); }
+.dynamic        { color: var(--purple); font-size: 10px; flex-shrink: 0; }
+.icon           { width: 14px; text-align: center; flex-shrink: 0; }
+.typeTag        { font-size: 10px; color: var(--dim); background: var(--bg3); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+.title          { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.elapsed        { font-size: 10px; color: var(--dim); flex-shrink: 0; }
+.addTaskBtn {
+  margin: 8px 12px;
+  width: calc(100% - 24px);
+  text-align: center;
+  color: var(--dim);
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  padding: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.addTaskBtn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* Detail panel */
+.detail {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 12px 16px;
+  max-height: 280px;
+  overflow-y: auto;
+  position: relative;
+}
+.detailClose    { position: absolute; top: 8px; right: 12px; }
+.detailMeta     { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; }
+.detailMeta span { color: var(--dim); }
+.detailMeta strong { color: var(--text); }
+.detailDeps     { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+.detailSections { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap: 8px; }
+.detailSection h4 { font-size: 11px; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.detailSection pre { font-size: 11px; color: var(--dim); white-space: pre-wrap; word-break: break-word; background: var(--bg3); padding: 6px 8px; border-radius: 4px; max-height: 120px; overflow-y: auto; }
+.detailError    { color: var(--red); font-size: 12px; margin-top: 8px; }

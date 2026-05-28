@@ -1,0 +1,130 @@
+/* ── Design tokens ── */
+:root {
+  --bg:        #0d1117;
+  --bg2:       #161b22;
+  --bg3:       #21262d;
+  --border:    #30363d;
+  --text:      #e6edf3;
+  --dim:       #7d8590;
+  --green:     #3fb950;
+  --yellow:    #d29922;
+  --red:       #f85149;
+  --cyan:      #58a6ff;
+  --purple:    #bc8cff;
+  --orange:    #ffa657;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Shared button ── */
+.btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn:hover     { background: #2d333b; }
+.btn-pause     { color: var(--yellow); border-color: var(--yellow); }
+.btn-resume    { color: var(--green);  border-color: var(--green); }
+.btn-danger    { color: var(--red);    border-color: var(--red); }
+.btn:disabled  { opacity: 0.4; cursor: default; }
+
+/* ── Connection dot ── */
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+  flex-shrink: 0;
+}
+.dot-live      { background: var(--green); }
+.dot-reconnect { background: var(--yellow); animation: blink 0.6s infinite; }
+.dot-replay    { background: var(--dim); animation: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── Badges ── */
+.badge       { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+.badge-risk  { background: rgba(248,81,73,0.2);  color: var(--red);    border: 1px solid rgba(248,81,73,0.4); }
+.badge-phase { background: rgba(88,166,255,0.1); color: var(--cyan);   border: 1px solid rgba(88,166,255,0.3); }
+.badge-eta   { background: rgba(210,153,34,0.1); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+.badge-cost  { background: rgba(63,185,80,0.1);  color: var(--green);  border: 1px solid rgba(63,185,80,0.3); }
+
+/* ── Pane shell ── */
+.pane {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pane:last-of-type { border-right: none; }
+.pane-header {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.pane-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* ── Main layout ── */
+#main {
+  display: grid;
+  grid-template-columns: 390px 1fr 360px;
+  grid-template-rows: 1fr auto;
+  flex: 1;
+  overflow: hidden;
+}
+@media (max-width: 1100px) { #main { grid-template-columns: 390px 1fr; } #log-pane { display: none; } }
+@media (max-width: 600px)  { #main { grid-template-columns: 1fr; } #agent-pane { display: none; } }
+
+/* ── Tab buttons (log/results) ── */
+.tab-btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover  { color: var(--text); }
+.tab-btn.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }

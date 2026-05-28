@@ -1,0 +1,83 @@
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.row1, .row2, .row3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.row2 { color: var(--dim); font-size: 12px; }
+.row3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+.brand    { color: var(--cyan); font-weight: bold; font-size: 14px; letter-spacing: 1px; }
+.runId    { color: var(--dim); font-size: 11px; }
+.projectBadge {
+  color: var(--dim);
+  font-size: 11px;
+  background: var(--bg3);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+.progressBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.progBar {
+  width: 120px;
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progFill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.progText { font-size: 12px; color: var(--dim); }
+.connStatus {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.statsRow  { display: flex; gap: 16px; align-items: center; }
+.stat      { color: var(--dim); }
+.stat span { color: var(--text); }
+.phaseTimeline { display: flex; gap: 6px; align-items: center; }
+.phaseChip {
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--dim);
+}
+.active {
+  background: rgba(88,166,255,0.1);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.goalLabel { color: var(--dim); font-size: 11px; }
+.goalText  { color: var(--cyan); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }

@@ -65,6 +65,5 @@ export class WsClient {
   }
 }
 
-// Singleton for the app lifetime
-const WS_URL = `ws://${location.host}/ws`
+const WS_URL = typeof window !== "undefined" ? `ws://${location.host}/ws` : ""
 export const wsClient = new WsClient(WS_URL)

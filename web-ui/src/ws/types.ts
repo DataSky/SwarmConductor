@@ -47,10 +47,17 @@ export interface TaskNode {
   role: string
   scope: string[]
   dependsOn: string[]
-  output: { summary: string; risks: string[]; blockers: string[] } | null
-  error: string | null
+  createdAt: number
   startedAt: number | null
   completedAt: number | null
+  output: {
+    summary: string
+    changes: { file: string; description: string }[]
+    evidence: string[]
+    risks: string[]
+    blockers: string[]
+  } | null
+  error: string | null
   tokenUsage: { inputTokens: number; outputTokens: number; cacheHitTokens: number; cacheMissTokens: number } | null
 }
 

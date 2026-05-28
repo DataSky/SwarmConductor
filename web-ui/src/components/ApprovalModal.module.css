@@ -1,0 +1,20 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 480px;
+  width: 90%;
+}
+.box h3 { color: var(--yellow); margin-bottom: 12px; font-size: 14px; }
+.msg { color: var(--dim); font-size: 12px; margin-bottom: 16px; white-space: pre-wrap; }
+.btns { display: flex; gap: 10px; }

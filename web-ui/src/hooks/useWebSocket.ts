@@ -1,28 +1,19 @@
 import { useEffect } from "react"
 import { wsClient } from "../ws/client"
-import type { ServerMessage } from "../ws/types"
+import type { ServerMessage, TaskNode } from "../ws/types"
 import { useServeStore } from "../store/serve"
 import { useRunStore } from "../store/run"
 
-/**
- * Mounts once at app level. Connects the WS client and routes every
- * incoming message to the appropriate Zustand store.
- */
 export function useWebSocket(): void {
   const { setServerState, setWsStatus, upsertTab, removeTab, setActiveTab } = useServeStore()
-  const { applySnapshot, pushLog, setTask, setPlanningElapsed, setFinished, reset } = useRunStore()
+  const { applySnapshot, pushLog, setTask, setPlanningElapsed, setFinished, reset: _reset } = useRunStore()
 
   useEffect(() => {
     const unsub = wsClient.subscribe((msg: ServerMessage) => {
-      // Internal connection-lifecycle messages injected by WsClient
-      if ((msg as { type: string }).type === "ws.open") {
-        setWsStatus("live")
-        return
-      }
-      if ((msg as { type: string }).type === "ws.close") {
-        setWsStatus("reconnect")
-        return
-      }
+      const type = (msg as { type: string }).type
+
+      if (type === "ws.open")  { setWsStatus("live");      return }
+      if (type === "ws.close") { setWsStatus("reconnect"); return }
 
       switch (msg.type) {
         case "server.state":
@@ -31,22 +22,29 @@ export function useWebSocket(): void {
 
         case "snapshot": {
           const { tabId, ...snap } = msg
-          applySnapshot(snap)
+          applySnapshot({
+            runId:            snap.runId,
+            goal:             snap.goal,
+            tasks:            snap.tasks,
+            agents:           snap.agents,
+            log:              snap.log,
+            tokenStats:       snap.tokenStats,
+            pendingApprovals: snap.pendingApprovals,
+            status:           snap.status as Parameters<typeof applySnapshot>[0]["status"],
+            runStartMs:       Date.now(),
+            runFinished:      false,
+          })
           if (tabId) setActiveTab(tabId)
           break
         }
 
         case "tick":
           applySnapshot({
-            ...(msg.tasks ? { tasks: msg.tasks } : {}),
-            ...(msg.agents ? { agents: msg.agents } : {}),
-            ...(msg.tokenStats ? { tokenStats: msg.tokenStats } : {}),
+            ...(msg.tasks       ? { tasks:      msg.tasks }       : {}),
+            ...(msg.agents      ? { agents:     msg.agents }      : {}),
+            ...(msg.tokenStats  ? { tokenStats: msg.tokenStats }  : {}),
+            ...(msg.status      ? { status:     msg.status as Parameters<typeof applySnapshot>[0]["status"] } : {}),
           })
-          break
-
-        case "delta":
-          // Token streaming — update last line of the matching agent slot
-          // (fine-grained update handled inside AgentSlots component)
           break
 
         case "log":
@@ -74,7 +72,7 @@ export function useWebSocket(): void {
           break
 
         case "run.finished":
-          setFinished()
+          setFinished(msg as unknown as Record<string, unknown>)
           setPlanningElapsed(null)
           break
 
@@ -92,13 +90,7 @@ export function useWebSocket(): void {
     })
 
     wsClient.connect()
-    return () => {
-      unsub()
-      wsClient.stop()
-    }
+    return () => { unsub(); wsClient.stop() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }
-
-// Re-export type so useWebSocket callers don't need to import from store
-import type { TaskNode } from "../ws/types"

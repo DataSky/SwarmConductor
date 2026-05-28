@@ -1,0 +1,32 @@
+.logBody   { padding: 6px 12px; display: flex; flex-direction: column; gap: 2px; }
+.logLine   { font-size: 11px; color: var(--dim); white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+.done      { color: var(--green); }
+.fail      { color: var(--red); }
+.running   { color: var(--cyan); }
+.dynamic   { color: var(--purple); }
+.paused    { color: var(--yellow); }
+
+.summaryBar { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+.resultCard {
+  margin: 4px 10px;
+  padding: 8px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.cardHeader { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.cardTitle  { flex: 1; font-size: 12px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardDur    { font-size: 10px; color: var(--dim); flex-shrink: 0; }
+.cardTok    { font-size: 10px; color: var(--yellow); flex-shrink: 0; }
+.cardSummary { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+.riskItem   { font-size: 11px; color: var(--yellow); }
+.blocker    { font-size: 11px; color: var(--red); }
+.resultError {
+  background: rgba(248,81,73,0.1);
+  border: 1px solid rgba(248,81,73,0.3);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--red);
+  margin: 4px 10px;
+}
