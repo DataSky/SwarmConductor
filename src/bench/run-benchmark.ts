@@ -318,7 +318,6 @@ async function main() {
     projectPath: PROJECT,
     maxConcurrentAgents: 9,
     basePort: BASE_PORT,
-    schedulerTickMs: 300,
     autoApprove: true,
     dynamicTasks: false,
     heartbeatIntervalMs: 60_000,
