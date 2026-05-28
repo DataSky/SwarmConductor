@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useRunStore } from "../store/run"
 import { useServeStore } from "../store/serve"
 import {
@@ -19,10 +18,14 @@ function computeTaskDepth(
   return cache[id]!
 }
 
-export function TaskDag() {
-  const tasks          = useRunStore((s) => s.tasks)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const activeTabId    = useServeStore((s) => s.activeTabId)
+interface TaskDagProps {
+  selectedId: string | null
+  onSelect: (id: string) => void
+}
+
+export function TaskDag({ selectedId, onSelect }: TaskDagProps) {
+  const tasks       = useRunStore((s) => s.tasks)
+  const activeTabId = useServeStore((s) => s.activeTabId)
 
   const sorted = [...tasks].sort((a, b) => a.createdAt - b.createdAt)
   const taskMap: Record<string, { dependsOn: string[] }> = {}
@@ -37,10 +40,6 @@ export function TaskDag() {
   }
 
   const done = sorted.filter((t) => t.status === "done").length
-
-  function selectTask(id: string) {
-    setSelectedId((prev) => (prev === id ? null : id))
-  }
 
   function openInject() {
     // Handled by InjectModal via global state
@@ -66,7 +65,7 @@ export function TaskDag() {
                   key={task.id}
                   className={`${styles.taskRow} ${styles[task.status] ?? ""} ${selectedId === task.id ? styles.selected : ""}`}
                   style={waveIdx > 0 ? { paddingLeft: 12 + waveIdx * 10 } : undefined}
-                  onClick={() => selectTask(task.id)}
+                  onClick={() => onSelect(task.id)}
                 >
                   {isDynamic && <span className={styles.dynamic}>⊕</span>}
                   <span
@@ -94,13 +93,11 @@ export function TaskDag() {
       {activeTabId && (
         <div className={styles.addTaskBtn} onClick={openInject}>+ Add Task</div>
       )}
-
-      {selectedId && <TaskDetail taskId={selectedId} tasks={sorted} onClose={() => setSelectedId(null)} />}
     </div>
   )
 }
 
-function TaskDetail({
+export function TaskDetail({
   taskId, tasks, onClose,
 }: {
   taskId: string

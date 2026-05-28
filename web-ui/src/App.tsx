@@ -3,11 +3,10 @@ import "./globals.css"
 import { useWebSocket } from "./hooks/useWebSocket"
 import { useServeStore } from "./store/serve"
 import { useRunStore } from "./store/run"
-
 import { TabBar }        from "./components/TabBar"
 import { Header }        from "./components/Header"
 import { LaunchOverlay } from "./components/LaunchOverlay"
-import { TaskDag }       from "./components/TaskDag"
+import { TaskDag, TaskDetail } from "./components/TaskDag"
 import { AgentSlots }    from "./components/AgentSlots"
 import { LogStream }     from "./components/LogStream"
 import { ApprovalModal } from "./components/ApprovalModal"
@@ -77,8 +76,10 @@ export default function App() {
   const activeTabId = useServeStore((s) => s.activeTabId)
   const { removeTab, setActiveTab } = useServeStore()
   const applySnapshot = useRunStore((s) => s.applySnapshot)
+  const tasks = useRunStore((s) => s.tasks)
 
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
   const showTUI = !!activeTabId
 
@@ -143,10 +144,20 @@ export default function App() {
           </div>
           <Header />
           <div id="main">
-            <TaskDag />
+            <TaskDag
+              selectedId={selectedTaskId}
+              onSelect={(id) => setSelectedTaskId((prev) => (prev === id ? null : id))}
+            />
             <AgentSlots />
             <LogStream />
           </div>
+          {selectedTaskId && (
+            <TaskDetail
+              taskId={selectedTaskId}
+              tasks={tasks}
+              onClose={() => setSelectedTaskId(null)}
+            />
+          )}
         </>
       ) : (
         <LaunchOverlay />

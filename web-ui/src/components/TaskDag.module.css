@@ -43,9 +43,8 @@
 }
 .addTaskBtn:hover { border-color: var(--cyan); color: var(--cyan); }
 
-/* Detail panel */
+/* ── Task detail panel — full-width bar below the three panes ── */
 .detail {
-  grid-column: 1 / -1;
   border-top: 1px solid var(--border);
   background: var(--bg2);
   padding: 12px 16px;
