@@ -35,6 +35,13 @@ else
   fail "T1-3  help 含 --no-ai-plan"
 fi
 
+# T1-4 count:ts 验证输出为 33
+if output=$(bun run count:ts -- --summary 2>&1) && echo "$output" | grep -q "33"; then
+  ok "T1-4  bun run count:ts --summary → 33"
+else
+  fail "T1-4  bun run count:ts --summary → 33 (got: $output)"
+fi
+
 echo ""
 echo "══════════════════════════════════════"
 echo "  T2  单元测试"

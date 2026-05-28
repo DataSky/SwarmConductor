@@ -185,18 +185,77 @@ export class TaskDAG {
     )
   }
 
-  /** Returns task IDs that form the detected cycle, empty if no cycle. */
+  /**
+   * Detect cycles among running tasks using DFS with 3‑color marking.
+   * Returns the first cycle found (task IDs in cycle order), or empty array.
+   *
+   * A deadlock exists when running tasks form a circular dependency:
+   *   A depends on B (directly or transitively) AND B depends on A.
+   * Simple chains (A→B with both running) are NOT deadlocks —
+   * they are normal concurrent execution with unmet dependencies.
+   */
   detectDeadlock(): string[] {
     const running = this.runningTasks()
-    const runningIds = new Set(running.map(t => t.id))
-    const cycle: string[] = []
+    if (running.length < 2) return []
 
-    for (const task of running) {
-      if (task.dependsOn.some(depId => runningIds.has(depId))) {
-        cycle.push(task.id)
+    const runningIds = new Set(running.map(t => t.id))
+
+    // Build adjacency: taskId → ids of running deps this task depends on
+    const graph = new Map<string, string[]>()
+    for (const t of running) {
+      const runningDeps = t.dependsOn.filter(depId => runningIds.has(depId))
+      if (runningDeps.length > 0) {
+        graph.set(t.id, runningDeps)
       }
     }
-    return cycle
+
+    // No edges → no cycle possible
+    if (graph.size === 0) return []
+
+    // DFS with 3‑color marking
+    const WHITE = 0, GRAY = 1, BLACK = 2
+    const color = new Map<string, number>()
+    const parent = new Map<string, string>()
+
+    for (const id of graph.keys()) {
+      color.set(id, WHITE)
+    }
+
+    function dfs(node: string): string[] | null {
+      color.set(node, GRAY)
+      const neighbors = graph.get(node) ?? []
+      for (const neighbor of neighbors) {
+        const c = color.get(neighbor)
+        if (c === GRAY) {
+          // Found a back edge — reconstruct the cycle
+          const cycle: string[] = [neighbor]
+          let cur = node
+          while (cur !== neighbor) {
+            cycle.push(cur)
+            cur = parent.get(cur)!
+          }
+          cycle.push(neighbor) // close the cycle
+          cycle.reverse()
+          return cycle
+        }
+        if (c === WHITE) {
+          parent.set(neighbor, node)
+          const result = dfs(neighbor)
+          if (result) return result
+        }
+      }
+      color.set(node, BLACK)
+      return null
+    }
+
+    for (const id of graph.keys()) {
+      if (color.get(id) === WHITE) {
+        const cycle = dfs(id)
+        if (cycle) return cycle
+      }
+    }
+
+    return []
   }
 
   /** Checks if two scopes (file/dir lists) overlap — used for conflict detection.

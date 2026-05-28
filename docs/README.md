@@ -9,3 +9,4 @@ Swarm Conductor 文档目录。
 | [03-architecture.md](03-architecture.md) | 模块详解、并发模型、数据流图、SSE 解析细节 |
 | [04-api-reference.md](04-api-reference.md) | 所有公开 API 的完整参考（`Conductor`、`TaskDAG`、`ApprovalGate`、`ConductorStore`、事件类型） |
 | [05-troubleshooting.md](05-troubleshooting.md) | 常见问题与排错指南 |
+| [06-project-progress.md](06-project-progress.md) | 项目进展报告：技术栈、模块架构、测试覆盖、Web UI 状态、后续建议 |

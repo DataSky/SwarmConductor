@@ -14,7 +14,8 @@
     "typecheck:backend": "tsc --noEmit",
     "typecheck:frontend": "cd web-ui && bun run typecheck",
     "test": "bun test",
-    "bench": "bun run src/bench/run-benchmark.ts"
+    "bench": "bun run src/bench/run-benchmark.ts",
+    "count:ts": "bun run scripts/count-ts-files.ts"
   },
   "dependencies": {
     "eventsource": "^2.0.2",

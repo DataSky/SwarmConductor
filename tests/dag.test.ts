@@ -271,6 +271,119 @@ describe("TaskDAG", () => {
 
     expect(dag.detectDeadlock()).toHaveLength(0)
   })
+
+  it("detects no false positive deadlocks when tasks form a running chain (A→B both running)", () => {
+    const dag = new TaskDAG("/tmp/test")
+    // A has no deps; B depends on A.  Both running is normal concurrency.
+    const a = createTaskNode({ type: "explore", title: "A", prompt: "p", scope: [] })
+    const b = createTaskNode({ type: "plan", title: "B", prompt: "p", scope: [], dependsOn: [a.id] })
+    dag.addTasks([a, b])
+    // A starts running; B becomes ready after A is assigned (its dep is now A which is running, not terminal yet — but B can be assigned before A finishes)
+    dag.assign(a.id, "agent-1")
+    // Manually force B to running to simulate the concurrent scenario
+    dag.assign(b.id, "agent-2")
+
+    expect(dag.getTask(a.id)?.status).toBe("running")
+    expect(dag.getTask(b.id)?.status).toBe("running")
+    expect(dag.detectDeadlock()).toHaveLength(0)
+  })
+
+  it("detects a true cycle (A→B→C→A) among running tasks", () => {
+    const dag = new TaskDAG("/tmp/test")
+    // Create a cycle: A→B→C→A
+    // We must create them with dependsOn and manually override since the engine
+    // normally prevents cycles at construction time
+    const a = createTaskNode({ type: "implement", title: "A", prompt: "p", scope: [], dependsOn: [] })
+    const b = createTaskNode({ type: "implement", title: "B", prompt: "p", scope: [], dependsOn: [] })
+    const c = createTaskNode({ type: "implement", title: "C", prompt: "p", scope: [], dependsOn: [] })
+    dag.addTasks([a, b, c])
+
+    // Manually wire a cycle: b depends on a, c depends on b, a depends on c
+    const ta = dag.getTask(a.id)!
+    const tb = dag.getTask(b.id)!
+    const tc = dag.getTask(c.id)!
+    ta.dependsOn = [c.id]
+    tb.dependsOn = [a.id]
+    tc.dependsOn = [b.id]
+    // Wire reverse edges
+    ta.blocks = []
+    tb.blocks = [a.id]  // b blocks a (a depends on b)
+    tc.blocks = [b.id]
+    // Set all to running
+    ta.status = "running"
+    tb.status = "running"
+    tc.status = "running"
+
+    const cycle = dag.detectDeadlock()
+    expect(cycle.length).toBeGreaterThanOrEqual(3)
+    // The cycle should contain all three nodes (order may vary)
+    expect(new Set(cycle)).toEqual(new Set([a.id, b.id, c.id]))
+  })
+
+  it("detects a simple 2-node cycle (A→B, B→A)", () => {
+    const dag = new TaskDAG("/tmp/test")
+    const a = createTaskNode({ type: "implement", title: "A", prompt: "p", scope: [], dependsOn: [] })
+    const b = createTaskNode({ type: "implement", title: "B", prompt: "p", scope: [], dependsOn: [] })
+    dag.addTasks([a, b])
+
+    const ta = dag.getTask(a.id)!
+    const tb = dag.getTask(b.id)!
+    ta.dependsOn = [b.id]
+    tb.dependsOn = [a.id]
+    ta.status = "running"
+    tb.status = "running"
+
+    const cycle = dag.detectDeadlock()
+    expect(cycle.length).toBeGreaterThanOrEqual(2)
+    expect(new Set(cycle)).toEqual(new Set([a.id, b.id]))
+  })
+
+  // ── Serialization ──────────────────────────────────────────────────────────
+
+  it("survives toJSON/fromJSON round-trip", () => {
+    const dag = new TaskDAG("/tmp/proj")
+    const a = createTaskNode({ type: "explore", title: "Scan", prompt: "p1", scope: ["src"] })
+    const b = createTaskNode({ type: "plan", title: "Plan", prompt: "p2", scope: ["src"], dependsOn: [a.id] })
+    dag.addTasks([a, b])
+    dag.assign(a.id, "agent-1")
+    dag.complete(a.id, {
+      summary: "ok", changes: [{ file: "src/a.ts", description: "added" }],
+      evidence: ["test pass"], risks: [], blockers: [], rawText: "## SUMMARY\nok",
+    })
+
+    const json = dag.toJSON()
+    const restored = TaskDAG.fromJSON(json as ReturnType<TaskDAG["toJSON"]> & { tasks: [string, any][], id: string, projectPath: string, phase: number, createdAt: number, updatedAt: number })
+
+    expect(restored.id).toBe(dag.id)
+    expect(restored.phase).toBe(dag.phase)
+    expect(restored.projectPath).toBe(dag.projectPath)
+    expect(restored.allTasks()).toHaveLength(2)
+    expect(restored.getTask(b.id)?.status).toBe("ready")
+    expect(restored.getTask(a.id)?.status).toBe("done")
+    expect(restored.getTask(a.id)?.output?.summary).toBe("ok")
+  })
+
+  // ── Error paths ────────────────────────────────────────────────────────────
+
+  it("throws when adding a task with duplicate ID", () => {
+    const dag = new TaskDAG("/tmp/test")
+    const task = createTaskNode({ type: "explore", title: "T", prompt: "p", scope: [] })
+    dag.addTask(task)
+    expect(() => dag.addTask(task)).toThrow(/already exists/)
+  })
+
+  it("throws when adding a single task that depends on an unknown task", () => {
+    const dag = new TaskDAG("/tmp/test")
+    const task = createTaskNode({ type: "plan", title: "Bad", prompt: "p", scope: [], dependsOn: ["nonexistent"] })
+    expect(() => dag.addTask(task)).toThrow(/unknown task/)
+  })
+
+  it("throws when addTasks includes a task that depends on an unknown task", () => {
+    const dag = new TaskDAG("/tmp/test")
+    const a = createTaskNode({ type: "explore", title: "A", prompt: "p", scope: [] })
+    const b = createTaskNode({ type: "plan", title: "B", prompt: "p", scope: [], dependsOn: ["ghost"] })
+    expect(() => dag.addTasks([a, b])).toThrow(/unknown task/)
+  })
 })
 
 describe("FileLockRegistry", () => {
