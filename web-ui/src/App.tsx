@@ -143,21 +143,24 @@ export default function App() {
             >☰</button>
           </div>
           <Header />
-          <div id="main">
-            <TaskDag
-              selectedId={selectedTaskId}
-              onSelect={(id) => setSelectedTaskId((prev) => (prev === id ? null : id))}
-            />
-            <AgentSlots />
-            <LogStream />
+          {/* content-area: #main fills remaining height, TaskDetail sticks to bottom */}
+          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div id="main" style={{ flex: 1, overflow: "hidden" }}>
+              <TaskDag
+                selectedId={selectedTaskId}
+                onSelect={(id) => setSelectedTaskId((prev) => (prev === id ? null : id))}
+              />
+              <AgentSlots />
+              <LogStream />
+            </div>
+            {selectedTaskId && (
+              <TaskDetail
+                taskId={selectedTaskId}
+                tasks={tasks}
+                onClose={() => setSelectedTaskId(null)}
+              />
+            )}
           </div>
-          {selectedTaskId && (
-            <TaskDetail
-              taskId={selectedTaskId}
-              tasks={tasks}
-              onClose={() => setSelectedTaskId(null)}
-            />
-          )}
         </>
       ) : (
         <LaunchOverlay />
