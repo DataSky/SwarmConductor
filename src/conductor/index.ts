@@ -147,6 +147,7 @@ export class Conductor {
   private config: ConductorConfig
   private conductorDir: string
   private tickInterval: ReturnType<typeof setInterval> | null = null
+  private ticking = false   // reentrancy guard for tick()
   private eventListeners: Array<(e: ConductorEvent) => void> = []
   private streamListeners: Array<(agentId: string, task: TaskNode, delta: string, model: string | null) => void> = []
   private agentInstructions: string
@@ -223,8 +224,12 @@ export class Conductor {
 
   startScheduler(): void {
     if (this.tickInterval) return
-    this.tickInterval = setInterval(() => this.tick(), this.config.schedulerTickMs)
+    // Safety-net timer: catches any missed wakeups (e.g. after approval gate resolves).
+    // Reduced from 500 ms to 5 s because dispatch() now calls triggerTick() on completion.
+    this.tickInterval = setInterval(() => this.triggerTick(), 5_000)
     this.crashRecovery.start()
+    // Kick off immediately so the first batch of ready tasks is dispatched without delay.
+    this.triggerTick()
   }
 
   stopScheduler(): void {
@@ -235,40 +240,51 @@ export class Conductor {
     this.crashRecovery.stop()
   }
 
+  // Enqueue a tick via queueMicrotask so callers never recurse directly into tick().
+  private triggerTick(): void {
+    queueMicrotask(() => this.tick())
+  }
+
   private async tick(): Promise<void> {
-    if (this.approvalGate.hasPending()) return
-    this.checkDeadlocks()
+    if (this.ticking) return   // prevent re-entrant ticks
+    this.ticking = true
+    try {
+      if (this.approvalGate.hasPending()) return
+      this.checkDeadlocks()
 
-    if (this.dag.isComplete()) {
-      this.stopScheduler()
-      const finalStatus = this.dag.hasCriticalFailure() ? "failed" : "completed"
-      this.store.updateRunStatus(finalStatus)
-      this.emit(finalStatus === "completed" ? "run.completed" : "run.failed", { phase: this.dag.phase })
-      return
-    }
-
-    const idleAgents = this.agentMgr.idleInstances()
-    if (idleAgents.length === 0) return
-
-    for (const task of this.dag.readyTasks()) {
-      if (idleAgents.length === 0) break
-      if (this.dag.conflictingRunning(task.scope).length > 0) continue
-
-      const agent =
-        this.agentMgr.idleByRole(task.role)[0] ??
-        this.agentMgr.idleByRole("general")[0] ??
-        idleAgents[0]
-      if (!agent) continue
-
-      if (task.scope.length > 0) {
-        if (!this.lockRegistry.tryAcquire(task.scope, agent.id, task.id)) continue
-        this.emit("lock.acquired", { agentId: agent.id, taskId: task.id, scope: task.scope })
+      if (this.dag.isComplete()) {
+        this.stopScheduler()
+        const finalStatus = this.dag.hasCriticalFailure() ? "failed" : "completed"
+        this.store.updateRunStatus(finalStatus)
+        this.emit(finalStatus === "completed" ? "run.completed" : "run.failed", { phase: this.dag.phase })
+        return
       }
 
-      idleAgents.splice(idleAgents.indexOf(agent), 1)
-      this.dispatch(agent.id, task).catch(err =>
-        console.error(`[conductor] dispatch error task=${task.id}:`, err)
-      )
+      const idleAgents = this.agentMgr.idleInstances()
+      if (idleAgents.length === 0) return
+
+      for (const task of this.dag.readyTasks()) {
+        if (idleAgents.length === 0) break
+        if (this.dag.conflictingRunning(task.scope).length > 0) continue
+
+        const agent =
+          this.agentMgr.idleByRole(task.role)[0] ??
+          this.agentMgr.idleByRole("general")[0] ??
+          idleAgents[0]
+        if (!agent) continue
+
+        if (task.scope.length > 0) {
+          if (!this.lockRegistry.tryAcquire(task.scope, agent.id, task.id)) continue
+          this.emit("lock.acquired", { agentId: agent.id, taskId: task.id, scope: task.scope })
+        }
+
+        idleAgents.splice(idleAgents.indexOf(agent), 1)
+        this.dispatch(agent.id, task).catch(err =>
+          console.error(`[conductor] dispatch error task=${task.id}:`, err)
+        )
+      }
+    } finally {
+      this.ticking = false
     }
   }
 
@@ -371,6 +387,9 @@ export class Conductor {
       this.emit("lock.released", { taskId: task.id })
       this.agentMgr.markIdle(agentId)
       this.activeDispatches--
+      // Immediately wake the scheduler so the next ready task starts
+      // without waiting for the 5-s safety-net interval.
+      if (this.tickInterval) this.triggerTick()
     }
   }
 
