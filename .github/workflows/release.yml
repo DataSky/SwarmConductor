@@ -31,7 +31,7 @@ jobs:
         run: bun run build:ui
 
       - name: Run tests
-        run: bun test tests/dag.test.ts tests/m3-unit.test.ts tests/store.test.ts tests/git-workspace.test.ts
+        run: bun test tests/dag.test.ts tests/m3-unit.test.ts tests/store.test.ts tests/git-workspace.test.ts tests/bugfix-regression.test.ts tests/parse-output.test.ts tests/interaction.test.ts tests/warm-pool.test.ts tests/agent-manager-adopt.test.ts tests/scope-concurrency.test.ts tests/project-scanner.test.ts tests/ai-planner-graph.test.ts
 
       - name: Build arm64
         run: |
