@@ -96,6 +96,7 @@ function injectFakeAgents(conductor: Conductor, count: number): void {
       status: "completed" as const,
       fullText: FAKE_OUTPUT.rawText,
       usage: { inputTokens: 10, outputTokens: 5, cacheHitTokens: 0, cacheMissTokens: 10 },
+      malformedLines: 0,
     })
 
     mgr.adopt(instance, fakeProc, fakeClient)

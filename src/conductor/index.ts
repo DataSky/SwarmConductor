@@ -329,13 +329,20 @@ export class Conductor {
 
       const agentModel = this.agentMgr.getInstance(agentId)?.model ?? null
 
-      const { fullText: rawText, status, usage } = await client.waitForTurn(
+      const { fullText: rawText, status, usage, malformedLines } = await client.waitForTurn(
         thread.id, turn.id,
         this.streamListeners.length > 0
           ? (delta) => { for (const cb of this.streamListeners) cb(agentId, task, delta, agentModel) }
           : undefined,
         this.config.fileLockTtlMs,
       )
+
+      if (malformedLines > 0) {
+        try {
+          this.store.logEvent(agentId, task.id, "sse.malformed",
+            { title: task.title, malformedLines })
+        } catch { /* db may be closed */ }
+      }
 
       if (status === "failed" || status === "interrupted") {
         this.dag.fail(task.id, `Turn ended with status: ${status}`)

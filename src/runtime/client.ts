@@ -121,7 +121,7 @@ export class CodeWhaleClient {
     _turnId: string,
     onDelta?: (text: string) => void,
     timeoutMs = 1_800_000
-  ): Promise<{ status: CWTurn["status"]; fullText: string; usage: TokenUsage }> {
+  ): Promise<{ status: CWTurn["status"]; fullText: string; usage: TokenUsage; malformedLines: number }> {
     const url = `${this.base}/v1/threads/${threadId}/events?since_seq=0`
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -143,6 +143,7 @@ export class CodeWhaleClient {
       // Default to "failed" so an unexpected stream close is never silently treated as success.
       let finalStatus: CWTurn["status"] = "failed"
       let usage: TokenUsage = { inputTokens: 0, outputTokens: 0, cacheHitTokens: 0, cacheMissTokens: 0 }
+      let malformedLines = 0
 
       outer: while (true) {
         const { done, value } = await reader.read()
@@ -183,7 +184,7 @@ export class CodeWhaleClient {
                 break outer
               }
             } catch {
-              // skip malformed SSE data line
+              malformedLines++
             }
           }
           // blank line = SSE event separator
@@ -193,7 +194,10 @@ export class CodeWhaleClient {
         }
       }
 
-      return { status: finalStatus, fullText, usage }
+      if (malformedLines > 0) {
+        console.warn(`[sse] thread=${threadId}: ${malformedLines} malformed SSE line(s) skipped`)
+      }
+      return { status: finalStatus, fullText, usage, malformedLines }
     } finally {
       clearTimeout(timer)
     }
