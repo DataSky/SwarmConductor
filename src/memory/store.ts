@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS event_log (
   timestamp  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_run ON event_log(run_id);
+
+-- Persistent restart counter so CrashRecovery survives conductor restarts.
+-- Keyed by (run_id, agent_id) — reset when a new run starts.
+CREATE TABLE IF NOT EXISTS agent_restarts (
+  run_id    TEXT NOT NULL,
+  agent_id  TEXT NOT NULL,
+  count     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (run_id, agent_id)
+);
 `
 
 export interface RunRecord {
@@ -308,6 +317,28 @@ export class ConductorStore {
       totalTokens: total,
       cacheHitRate: (input > 0) ? Math.round((hit / input) * 100) : 0,
     }
+  }
+
+  // ── Agent restart counters (persistent across conductor restarts) ─────────
+
+  /** Increment the restart counter for an agent and return the new count. */
+  incrementAgentRestarts(agentId: string): number {
+    this.db.prepare(
+      `INSERT INTO agent_restarts (run_id, agent_id, count) VALUES (?,?,1)
+       ON CONFLICT(run_id, agent_id) DO UPDATE SET count = count + 1`
+    ).run(this.runId, agentId)
+    const row = this.db.prepare(
+      `SELECT count FROM agent_restarts WHERE run_id=? AND agent_id=?`
+    ).get(this.runId, agentId) as { count: number } | undefined
+    return row?.count ?? 1
+  }
+
+  /** Read the current restart count for an agent (0 if never restarted). */
+  getAgentRestarts(agentId: string): number {
+    const row = this.db.prepare(
+      `SELECT count FROM agent_restarts WHERE run_id=? AND agent_id=?`
+    ).get(this.runId, agentId) as { count: number } | undefined
+    return row?.count ?? 0
   }
 
   private closed = false

@@ -2,16 +2,18 @@ import type { ConductorConfig, AgentInstance } from "../dag/types"
 import type { AgentProcessManager } from "../runtime/agent-manager"
 import type { TaskDAG } from "../dag/engine"
 import type { FileLockRegistry } from "../workspace/file-lock"
+import type { ConductorStore } from "../memory/store"
 
 // ─── Crash Recovery Monitor ───────────────────────────────────────────────────
 // Polls agent heartbeats, detects crashes, restarts agents, requeues tasks.
+// Restart counts are persisted to SQLite so they survive conductor restarts.
 
 export class CrashRecovery {
   private config: ConductorConfig
   private agentMgr: AgentProcessManager
   private dag: TaskDAG
   private lockRegistry: FileLockRegistry
-  private restartCounts: Map<string, number> = new Map()
+  private store: ConductorStore
   private interval: ReturnType<typeof setInterval> | null = null
   private checking = false  // mutex: prevent overlapping check() calls
   private onCrash: (agentId: string) => void = () => {}
@@ -22,11 +24,13 @@ export class CrashRecovery {
     agentMgr: AgentProcessManager,
     dag: TaskDAG,
     lockRegistry: FileLockRegistry,
+    store: ConductorStore,
   ) {
     this.config = config
     this.agentMgr = agentMgr
     this.dag = dag
     this.lockRegistry = lockRegistry
+    this.store = store
   }
 
   onAgentCrash(cb: (agentId: string) => void): void { this.onCrash = cb }
@@ -105,15 +109,17 @@ export class CrashRecovery {
     // Release any locks held by this agent
     this.lockRegistry.releaseByAgent(agentId)
 
-    // Try to restart unless we've hit max restarts
-    const restarts = this.restartCounts.get(agentId) ?? 0
+    // Read persistent restart count (survives conductor restarts)
+    const restarts = this.store.getAgentRestarts(agentId)
     if (restarts >= this.config.maxAgentRestarts) {
       console.error(`[recovery] Agent ${agentId} exceeded max restarts (${this.config.maxAgentRestarts}), giving up`)
       return
     }
 
     try {
-      this.restartCounts.set(agentId, restarts + 1)
+      // Persist the incremented count before attempting restart so that even
+      // if the restart itself crashes the conductor, the count is not lost.
+      this.store.incrementAgentRestarts(agentId)
       await this.agentMgr.restart(agentId)
       this.onRestart(agentId)
     } catch (err) {

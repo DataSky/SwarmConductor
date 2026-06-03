@@ -205,3 +205,68 @@ describe("getContext query strategy", () => {
     expect(entries.length).toBe(0)
   })
 })
+
+// ─── Agent restart counters ───────────────────────────────────────────────────
+
+const RESTART_TMP = join(process.cwd(), ".test-store-restart-db")
+
+describe("agent restart counters", () => {
+  let rStore: ConductorStore
+  beforeEach(() => {
+    rmSync(RESTART_TMP, { recursive: true, force: true })
+    mkdirSync(RESTART_TMP, { recursive: true })
+    rStore = new ConductorStore(RESTART_TMP, "run-restart-test")
+    rStore.initRun("/proj")
+  })
+  afterEach(() => { rStore.close(); rmSync(RESTART_TMP, { recursive: true, force: true }) })
+
+  it("returns 0 for an agent that has never restarted", () => {
+    expect(rStore.getAgentRestarts("agent-1")).toBe(0)
+  })
+
+  it("increments and returns the new count", () => {
+    expect(rStore.incrementAgentRestarts("agent-1")).toBe(1)
+    expect(rStore.incrementAgentRestarts("agent-1")).toBe(2)
+    expect(rStore.incrementAgentRestarts("agent-1")).toBe(3)
+    expect(rStore.getAgentRestarts("agent-1")).toBe(3)
+  })
+
+  it("tracks different agents independently", () => {
+    rStore.incrementAgentRestarts("agent-a")
+    rStore.incrementAgentRestarts("agent-a")
+    rStore.incrementAgentRestarts("agent-b")
+    expect(rStore.getAgentRestarts("agent-a")).toBe(2)
+    expect(rStore.getAgentRestarts("agent-b")).toBe(1)
+  })
+
+  it("persists across store re-open (simulates conductor restart)", () => {
+    rStore.incrementAgentRestarts("agent-1")
+    rStore.incrementAgentRestarts("agent-1")
+    rStore.close()
+
+    // Re-open same DB with same run ID
+    const rStore2 = new ConductorStore(RESTART_TMP, "run-restart-test")
+    rStore2.initRun("/proj")
+    expect(rStore2.getAgentRestarts("agent-1")).toBe(2)
+    expect(rStore2.incrementAgentRestarts("agent-1")).toBe(3)
+    rStore2.close()
+
+    // Re-open again to confirm
+    rStore = new ConductorStore(RESTART_TMP, "run-restart-test")
+    rStore.initRun("/proj")
+    expect(rStore.getAgentRestarts("agent-1")).toBe(3)
+  })
+
+  it("does not share counts across different run IDs", () => {
+    rStore.incrementAgentRestarts("agent-1")
+    rStore.close()
+
+    const rStore2 = new ConductorStore(RESTART_TMP, "run-restart-other")
+    rStore2.initRun("/proj")
+    expect(rStore2.getAgentRestarts("agent-1")).toBe(0)
+    rStore2.close()
+
+    rStore = new ConductorStore(RESTART_TMP, "run-restart-test")
+    rStore.initRun("/proj")
+  })
+})

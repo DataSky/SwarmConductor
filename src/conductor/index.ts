@@ -166,7 +166,7 @@ export class Conductor {
     this.approvalGate = new ApprovalGate()
     this.agentInstructions = loadAgentInstructions(config.projectPath)
 
-    this.crashRecovery = new CrashRecovery(config, this.agentMgr, this.dag, this.lockRegistry)
+    this.crashRecovery = new CrashRecovery(config, this.agentMgr, this.dag, this.lockRegistry, this.store)
     this.crashRecovery.onAgentCrash(id => this.emit("agent.crashed", { agentId: id }))
     this.crashRecovery.onAgentRestart(id => this.emit("agent.restarted", { agentId: id }))
 
