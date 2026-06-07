@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
 import { join } from "path"
 import { mkdirSync } from "fs"
-import type { TaskNode, MemoryEntry, MemoryLayerKind, Artifact, ArtifactKind, ArtifactRef } from "../dag/types"
+import type { TaskNode, MemoryEntry, MemoryLayerKind, Artifact, ArtifactKind, ArtifactRef, ConductorEvent } from "../dag/types"
 
 // ─── ConductorStore (SQLite via bun:sqlite) ───────────────────────────────────
 
@@ -116,13 +116,13 @@ export class ConductorStore {
   private db: Database
   private runId: string
 
-  constructor(conductorDir: string, runId: string) {
+  constructor(conductorDir: string, runId: string, busyTimeoutMs = 5_000) {
     mkdirSync(conductorDir, { recursive: true })
     this.db = new Database(join(conductorDir, "conductor.db"))
     this.db.exec(
       "PRAGMA journal_mode=WAL;\n" +
       "PRAGMA synchronous=NORMAL;\n" +
-      "PRAGMA busy_timeout=5000;\n" +   // wait up to 5s instead of failing immediately on lock
+      `PRAGMA busy_timeout=${busyTimeoutMs};\n` +   // wait instead of failing immediately on lock
       SCHEMA
     )
     // Migrate DBs created before the input_artifact_ids column existed.
@@ -365,6 +365,98 @@ export class ConductorStore {
       payload: JSON.parse(r["payload"] as string) as Record<string,unknown>,
       timestamp: r["timestamp"] as number,
     }))
+  }
+
+  /** Persist a full ConductorEvent to event_log. Called by Conductor.emit()
+   *  so every broadcast is also durable. Errors are best-effort — closed DB
+   *  during shutdown is silently ignored; anything else is logged. */
+  logConductorEvent(event: ConductorEvent, agentId = "_conductor", taskId = "_"): void {
+    try {
+      this.db.prepare(
+        `INSERT INTO event_log (run_id,agent_id,task_id,kind,payload,timestamp) VALUES (?,?,?,?,?,?)`
+      ).run(this.runId, agentId, taskId, event.kind, JSON.stringify(event.payload), event.timestamp)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes("closed database")) console.error(`[store] logConductorEvent failed: ${msg}`)
+    }
+  }
+
+  /** Return all events for this run in chronological order. Supports cursor-
+   *  based pagination: pass `sinceSeq` (the last seen event `id`) to get only
+   *  newer events; pass `limit` to cap the page size (default unlimited). */
+  getRunTrace(opts?: { sinceSeq?: number; limit?: number }): Array<{
+    id: number; agentId: string; taskId: string; kind: string;
+    payload: Record<string, unknown>; timestamp: number
+  }> {
+    const since = opts?.sinceSeq ?? 0
+    const rows = opts?.limit !== undefined
+      ? this.db.prepare(
+          `SELECT * FROM event_log WHERE run_id=? AND id>? ORDER BY id ASC LIMIT ?`
+        ).all(this.runId, since, opts.limit) as Record<string, unknown>[]
+      : this.db.prepare(
+          `SELECT * FROM event_log WHERE run_id=? AND id>? ORDER BY id ASC`
+        ).all(this.runId, since) as Record<string, unknown>[]
+    return rows.map(r => ({
+      id: r["id"] as number,
+      agentId: r["agent_id"] as string,
+      taskId: r["task_id"] as string,
+      kind: r["kind"] as string,
+      payload: JSON.parse(r["payload"] as string) as Record<string, unknown>,
+      timestamp: r["timestamp"] as number,
+    }))
+  }
+
+  // ── Diagnostics (M3) ──────────────────────────────────────────────────────
+
+  /** Recursively walk the artifact lineage tree rooted at `artifactId`.
+   *  Returns a flat list of all ancestor artifacts in topological order
+   *  (the root artifact is always last). Stops at depth 50 to guard against
+   *  malformed circular references in old data. */
+  getArtifactLineage(artifactId: string): Artifact[] {
+    const visited = new Set<string>()
+    const result: Artifact[] = []
+
+    const walk = (id: string, depth: number) => {
+      if (depth > 50 || visited.has(id)) return
+      visited.add(id)
+      const art = this.getArtifact(id)
+      if (!art) return
+      for (const srcId of art.sourceArtifactIds ?? []) walk(srcId, depth + 1)
+      result.push(art)
+    }
+    walk(artifactId, 0)
+    return result
+  }
+
+  /** Aggregate view of a run: task stats, token stats, failed-task list, and
+   *  key events (crash / deadlock / approval). Used by the diagnose-run CLI and
+   *  the /api/runs/{id}/summary HTTP endpoint. */
+  getRunSummary(): {
+    taskStats: ReturnType<ConductorStore["taskStats"]>
+    tokenStats: ReturnType<ConductorStore["tokenStats"]>
+    failedTasks: Array<{ id: string; title: string; error: string | null }>
+    keyEvents: Array<{ kind: string; payload: Record<string, unknown>; timestamp: number }>
+  } {
+    const failedRows = this.db.prepare(
+      `SELECT id, title, error FROM tasks WHERE run_id=? AND status='failed'`
+    ).all(this.runId) as { id: string; title: string; error: string | null }[]
+
+    const keyKinds = ["agent.crashed", "deadlock.detected", "approval.required", "approval.resolved", "run.completed", "run.failed"]
+    const placeholders = keyKinds.map(() => "?").join(",")
+    const eventRows = this.db.prepare(
+      `SELECT kind, payload, timestamp FROM event_log WHERE run_id=? AND kind IN (${placeholders}) ORDER BY id ASC`
+    ).all(this.runId, ...keyKinds) as { kind: string; payload: string; timestamp: number }[]
+
+    return {
+      taskStats: this.taskStats(),
+      tokenStats: this.tokenStats(),
+      failedTasks: failedRows,
+      keyEvents: eventRows.map(r => ({
+        kind: r.kind,
+        payload: JSON.parse(r.payload) as Record<string, unknown>,
+        timestamp: r.timestamp,
+      })),
+    }
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────

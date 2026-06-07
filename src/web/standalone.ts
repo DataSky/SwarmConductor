@@ -5,7 +5,9 @@ import { PortPool } from "./handlers/port-pool"
 import { handleStartRun, forwardToSlot, TabDashboard } from "./handlers/start-run"
 import type { RunSlot } from "./handlers/start-run"
 import { handleReplay } from "./handlers/replay"
+import { handleRunSummary, handleRunTrace, handleArtifactLineage } from "./handlers/diagnostics"
 import { handleDataflowRun } from "./handlers/dataflow-run"
+import { handleDataAgentRun } from "../dataagent/handler"
 import { mkdirSync } from "fs"
 import { join } from "path"
 
@@ -57,6 +59,10 @@ export class StandaloneServer {
     this.server = Bun.serve({
       port: this.port,
       hostname: "127.0.0.1",   // localhost only — the dataflow endpoint runs SQL / spends tokens
+      // DataAgent uses SSE + long-running LLM calls (can take 30-60s per round)
+      // Default 10s idle timeout kills streaming connections mid-analysis.
+      // Bun max is 255; use 240 (4 min) to cover multi-round agent runs.
+      idleTimeout: 240,
       fetch(req, server) {
         const url = new URL(req.url)
         if (url.pathname === "/ws") {
@@ -65,6 +71,9 @@ export class StandaloneServer {
         }
         if (url.pathname === "/api/dataflow/run") {
           return self.handleDataflowHTTP(req)
+        }
+        if (url.pathname === "/api/dataagent/run") {
+          return handleDataAgentRun(req, self.apiToken)
         }
         return self.handleHTTP(url)
       },
@@ -114,6 +123,20 @@ export class StandaloneServer {
     const replayMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/replay$/)
     if (replayMatch) {
       return handleReplay(replayMatch[1]!, this.goalStore, json)
+    }
+    const summaryMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/summary$/)
+    if (summaryMatch) {
+      return handleRunSummary(summaryMatch[1]!, this.goalStore, json)
+    }
+    const traceMatch = url.pathname.match(/^\/api\/runs\/([^/]+)\/trace$/)
+    if (traceMatch) {
+      return handleRunTrace(traceMatch[1]!, this.goalStore, url.searchParams, json)
+    }
+    const lineageMatch = url.pathname.match(/^\/api\/artifacts\/([^/]+)\/lineage$/)
+    if (lineageMatch) {
+      const runId = url.searchParams.get("run") ?? ""
+      if (!runId) return new Response("?run= query param required", { status: 400 })
+      return handleArtifactLineage(lineageMatch[1]!, runId, this.goalStore, json)
     }
     return new Response("Not found", { status: 404 })
   }

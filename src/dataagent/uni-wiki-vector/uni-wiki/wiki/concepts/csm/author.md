@@ -1,0 +1,703 @@
+---
+title: 作者/创作者
+domain: csm
+tags: [entitie, csm, entity]
+---
+# 作者/创作者
+
+DataSky平台内容创作者实体，包含视频作者和直播主播
+
+## primary_key
+- - **name**: author_id
+- **type**: bigint
+- **description**: 作者/创作者唯一标识
+
+## attributes
+- - **name**: author_name
+- **type**: string
+- **description**: 作者名称
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 作者名称
+- - **name**: birthday
+- **type**: string
+- **description**: 生日
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 生日
+- - **name**: constellation
+- **type**: string
+- **description**: 星座
+- **category**: profile
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+- - **name**: user_type
+- **type**: string
+- **description**: 用户类型
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 用户类型
+- - **name**: profile_text
+- **type**: string
+- **description**: 个人简介
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 个人简介
+- - **name**: location
+- **type**: string
+- **description**: 位置
+- **category**: profile
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+- - **name**: user_status
+- **type**: string
+- **description**: 用户状态
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 用户状态
+- - **name**: phone
+- **type**: string
+- **description**: 手机号
+- **category**: contact
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 手机号
+- - **name**: email
+- **type**: string
+- **description**: 邮箱
+- **category**: contact
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 邮箱
+- - **name**: is_big_head_image
+- **type**: int
+- **description**: 是否大头像
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否大头像
+- - **name**: head_url
+- **type**: string
+- **description**: 头像URL
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 头像URL
+- - **name**: background_url
+- **type**: string
+- **description**: 背景图URL
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 背景图URL
+- - **name**: v_type
+- **type**: string
+- **description**: V认证类型
+- **category**: certification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: V认证类型
+- - **name**: v_name
+- **type**: string
+- **description**: V认证名称
+- **category**: certification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: V认证名称
+- - **name**: is_v
+- **type**: int
+- **description**: 是否V认证
+- **category**: certification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否V认证
+- - **name**: is_verified
+- **type**: int
+- **description**: 是否已认证
+- **category**: certification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否已认证
+- - **name**: is_privacy_user
+- **type**: int
+- **description**: 是否隐私用户
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否隐私用户
+- - **name**: is_social_ban
+- **type**: int
+- **description**: 是否社交封禁
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否社交封禁
+- - **name**: is_ban
+- **type**: int
+- **description**: 是否封禁
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否封禁
+- - **name**: is_spam_user
+- **type**: int
+- **description**: 是否垃圾用户
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否垃圾用户
+- - **name**: is_mcn_user
+- **type**: int
+- **description**: 是否MCN用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否MCN用户
+- - **name**: is_account_user
+- **type**: int
+- **description**: 是否账号用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否账号用户
+- - **name**: is_merchant_user
+- **type**: int
+- **description**: 是否商家用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否商家用户
+- - **name**: is_gr_user
+- **type**: int
+- **description**: 是否GR用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否GR用户
+- - **name**: gr_type
+- **type**: string
+- **description**: GR类型
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: GR类型
+- - **name**: is_switch_user
+- **type**: int
+- **description**: 是否切换用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否切换用户
+- - **name**: is_switch_0h_user
+- **type**: int
+- **description**: 是否0点切换用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否0点切换用户
+- - **name**: is_seller
+- **type**: int
+- **description**: 是否卖家
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否卖家
+- - **name**: is_signed_author
+- **type**: int
+- **description**: 是否签约作者
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否签约作者
+- - **name**: is_signed_anchor
+- **type**: int
+- **description**: 是否签约主播
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否签约主播
+- - **name**: is_from_recruit
+- **type**: int
+- **description**: 是否来自招募
+- **category**: identity
+- **table_sources**:   -     - **table_id**: ks_db_origin.gifshow_admin_player_recruit_record_dt_snapshot
+    - **description**: 是否来自招募
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: author_range
+- **type**: string
+- **description**: 作者等级(type_A/B/C/D/E)
+- **category**: level
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+  -     - **table_id**: 计算字段
+- - **name**: upload_frequency
+- **type**: string
+- **description**: 上传频率(纯新生产者/老用户新生产者/7天沉默生产者/持续生产者)
+- **category**: behavior_type
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+  -     - **table_id**: 计算字段
+- - **name**: kwai_id
+- **type**: string
+- **description**: DataSkyID
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: DataSkyID
+- - **name**: kwai_id_create_timestamp
+- **type**: bigint
+- **description**: DataSkyID创建时间戳
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: DataSkyID创建时间戳
+- - **name**: reg_timestamp
+- **type**: bigint
+- **description**: 注册时间戳
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册时间戳
+- - **name**: reg_ipv4
+- **type**: string
+- **description**: 注册IPv4
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册IPv4
+- - **name**: reg_ipv6
+- **type**: string
+- **description**: 注册IPv6
+- **category**: registration
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+- - **name**: reg_channel
+- **type**: string
+- **description**: 注册渠道
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册渠道
+- - **name**: reg_channel_desc
+- **type**: string
+- **description**: 注册渠道描述
+- **category**: registration
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+- - **name**: reg_country
+- **type**: string
+- **description**: 注册国家
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册国家
+- - **name**: reg_province
+- **type**: string
+- **description**: 注册省份
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册省份
+- - **name**: reg_city
+- **type**: string
+- **description**: 注册城市
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册城市
+- - **name**: reg_country_region
+- **type**: string
+- **description**: 注册国家地区
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册国家地区
+- - **name**: reg_device_id
+- **type**: string
+- **description**: 注册设备ID
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册设备ID
+- - **name**: reg_product
+- **type**: string
+- **description**: 注册产品
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册产品
+- - **name**: reg_platform
+- **type**: string
+- **description**: 注册平台
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 注册平台
+- - **name**: feed_model
+- **type**: string
+- **description**: Feed模式
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: Feed模式
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: browse_type
+- **type**: string
+- **description**: 浏览类型
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 浏览类型
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: product_browse_name
+- **type**: string
+- **description**: 产品浏览名称
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 产品浏览名称
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: device_brand
+- **type**: string
+- **description**: 设备品牌
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 设备品牌
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: device_model
+- **type**: string
+- **description**: 设备型号
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 设备型号
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: platform
+- **type**: string
+- **description**: 平台
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 平台
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: language
+- **type**: string
+- **description**: 语言
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 语言
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: os_version
+- **type**: string
+- **description**: 操作系统版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 操作系统版本
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: app_version
+- **type**: string
+- **description**: APP版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: APP版本
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: app_minor_version
+- **type**: string
+- **description**: APP小版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: APP小版本
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: app_major_version
+- **type**: string
+- **description**: APP大版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: APP大版本
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: app_download_channel
+- **type**: string
+- **description**: APP下载渠道
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: APP下载渠道
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: isp
+- **type**: string
+- **description**: 运营商
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 运营商
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: country_name
+- **type**: string
+- **description**: 国家名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 国家名称
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: country_region
+- **type**: string
+- **description**: 国家地区
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 国家地区
+  -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 国家区域
+- - **name**: province_name
+- **type**: string
+- **description**: 省份名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 省份名称
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: city_name
+- **type**: string
+- **description**: 城市名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 城市名称
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: city_level
+- **type**: string
+- **description**: 城市等级
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 城市等级
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: county_name
+- **type**: string
+- **description**: 区县名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 区县名称
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_douyin
+- **type**: int
+- **description**: 是否安装抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装抖音
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_huoshan
+- **type**: int
+- **description**: 是否安装火山
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装火山
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_huya
+- **type**: int
+- **description**: 是否安装虎牙
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装虎牙
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_douyu
+- **type**: int
+- **description**: 是否安装斗鱼
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装斗鱼
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_wzry
+- **type**: int
+- **description**: 是否安装王者荣耀
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装王者荣耀
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_cjzc
+- **type**: int
+- **description**: 是否安装刺激战场
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装刺激战场
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_install_xigua
+- **type**: int
+- **description**: 是否安装西瓜视频
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 是否安装西瓜视频
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_today_active
+- **type**: int
+- **description**: 今日是否活跃
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 今日是否活跃
+  -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 是否当天活跃
+- - **name**: is_reg_user
+- **type**: int
+- **description**: 是否注册用户
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否注册用户
+- - **name**: first_active_date
+- **type**: string
+- **description**: 首次活跃日期
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 首次活跃日期
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: last_active_date
+- **type**: string
+- **description**: 最后活跃日期
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 最后活跃日期
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: first_live_date
+- **type**: string
+- **description**: 首次直播日期
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 首次直播日期
+- - **name**: last_live_date
+- **type**: string
+- **description**: 最后直播日期
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 最后直播日期
+- - **name**: is_photo_author
+- **type**: int
+- **description**: 是否视频作者
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否视频作者
+- - **name**: is_live_author
+- **type**: int
+- **description**: 是否直播作者
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否直播作者
+- - **name**: is_new_live_author
+- **type**: int
+- **description**: 是否新直播作者
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否新直播作者
+- - **name**: is_new_live_audience
+- **type**: int
+- **description**: 是否新直播观众
+- **category**: identity
+- **table_sources**:   -     - **table_id**: ks_dws.party_ksprod_live_user_play_df
+    - **description**: 是否新直播观众
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_live_authority_now
+- **type**: int
+- **description**: 当前是否有直播权限
+- **category**: live
+- **table_sources**:   -     - **table_id**: ks_dw_dim.party_ksprod_live_author_df
+    - **description**: 当前是否有直播权限
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: live_authority_status
+- **type**: int
+- **description**: 直播权限状态
+- **category**: live
+- **table_sources**:   -     - **table_id**: ks_dw_dim.party_ksprod_live_author_df
+    - **description**: 直播权限状态
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_upload_photo
+- **type**: int
+- **description**: 是否上传视频
+- **category**: behavior_type
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 是否上传视频
+- - **name**: is_silence_user
+- **type**: int
+- **description**: 是否沉默用户
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 是否沉默用户
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: author_acu_range
+- **type**: string
+- **description**: 作者ACU等级
+- **category**: level
+- **table_sources**:   -     - **table_id**: ks_dw_dim.party_ksprod_live_author_df
+    - **description**: 作者ACU等级
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: live_author_type
+- **type**: string
+- **description**: 直播作者类型
+- **category**: identity
+- **table_sources**:   -     - **table_id**: ks_dw_dim.party_ksprod_live_author_df
+    - **description**: 直播作者类型
+  -     - **table_id**: dim_ks_author_all.sql
+- - **name**: is_big_v
+- **type**: int
+- **description**: 是否大V(粉丝>500万)
+- **category**: level
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+  -     - **table_id**: 计算字段
+- - **name**: ban_level
+- **type**: string
+- **description**: 封禁等级
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 封禁等级
+- - **name**: product
+- **type**: string
+- **description**: 产品
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_author_property_all
+    - **description**: 产品
+- - **name**: first_app_version
+- **type**: string
+- **description**: 首次APP版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次APP版本
+- - **name**: first_app_major_version
+- **type**: string
+- **description**: 首次APP大版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次APP大版本
+- - **name**: first_app_minor_version
+- **type**: string
+- **description**: 首次APP小版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次APP小版本
+- - **name**: first_country_name
+- **type**: string
+- **description**: 首次国家名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次国家名称
+- - **name**: first_province_name
+- **type**: string
+- **description**: 首次省份名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次省份名称
+- - **name**: first_city_name
+- **type**: string
+- **description**: 首次城市名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次城市名称
+- - **name**: first_county_name
+- **type**: string
+- **description**: 首次区县名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: dim_ks_author_all.sql
+    - **description**: 首次区县名称
+- - **name**: extra_json
+- **type**: string
+- **description**: 扩展JSON信息
+- **category**: extra
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+    - **description**: 扩展JSON信息
+
+## relationships
+- - **target_entity**: user
+- **join_key**: author_id
+- **type**: one_to_one
+- **description**: 作者关联用户
+
+## source_tables
+- - **table_id**: kscdm.dim_ks_author_property_all
+- **usage**: 主表-作者属性
+- - **table_id**: kscdm.dwd_ks_soc_follow_df
+- **usage**: 粉丝数据
+- - **table_id**: ks_db_origin.gifshow_admin_player_recruit_record_dt_snapshot
+- **usage**: 招募用户数据
+- - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- **usage**: 用户活跃和设备数据
+- - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- **usage**: APP安装数据
+- - **table_id**: ks_dws.party_ksprod_live_user_play_df
+- **usage**: 新直播观众数据
+- - **table_id**: ks_dw_dim.party_ksprod_live_author_df
+- **usage**: 直播权限数据
+
+## business_notes
+- os_version等同于system_version，保持与user_daily的逻辑一致
+- is_big_v判断标准: 粉丝数>500万
+- reg_day_cnt为注册天数
+- UNKNOWN作为缺省值处理
+- first_active_date初始化以2018年0101开始计算
+- upload_frequency生产者分类: 纯新生产者(当日注册), 老用户新生产者(首次上传为当日或UNKNOWN), 7天沉默生产者(T-7至T-1未发布), 持续生产者(其他)
+- coalesce默认值: 数值型用-124表示未知, 字符串用UNKNOWN表示未知
+- author_range分级规则: type_A(视频作者且名人或GR用户), type_B(视频作者且MCN或粉丝>=5万), type_C(视频作者且粉丝>=100), type_D(其他视频作者), type_E(非视频作者)
+- -124作为缺省值处理(APP安装状态等)
+- timestamp类属性暂时不作兜底处理
+- author_range分级规则: type_A=视频作者且(名人或GR用户), type_B=视频作者且(MCN用户或粉丝>=5万), type_C=视频作者且粉丝>=100, type_E=非视频作者, type_D=其他
+- first_active_date初始化时以2018年0101开始计算
+- upload_frequency分类: 纯新生产者(当天注册), 老用户新生产者(首次上传当天或未知), 7天沉默生产者(T-7至T-1未发布), 持续生产者(其他)
+- first_active_date初始化: 以2018年0101开始计算最早和最晚活跃日期
+- timestamp类属性暂时不作兜底
+- extra_json包含额外APP安装信息: is_install_bilibili, is_install_yy, is_install_douyin_jisuban, is_install_wesee
+- upload_frequency分类: 纯新生产者(新注册用户), 老用户新生产者(首次上传或未知), 7天沉默生产者(T-7至T-1未发布), 持续生产者(其他)
+- 缺省值处理: 多数字段使用UNKNOWN或-124作为默认值
+- author_range分级规则: type_A(视频作者且名人或GR用户), type_B(视频作者且MCN或粉丝>=5万), type_C(视频作者且粉丝>=100), type_E(非视频作者), type_D(其他)
+- author_range分级逻辑: type_A(视频作者且名人或GR用户), type_B(视频作者且MCN或粉丝>=5万), type_C(视频作者且粉丝>=100), type_E(非视频作者), type_D(其他)
+- os_version等同于system_version，保持与user_daily逻辑一致
+- is_today_active: 如果user_id不是未登录用户并且当天是活跃用户则判断其为当天活跃
+- upload_frequency分类: 纯新生产者(新注册用户), 老用户新生产者(首次上传), 7天沉默生产者(T-7至T-1未发布), 持续生产者(其他)
+- is_today_active判断: 如果user_id不是未登录用户并且当天是活跃用户则为1
+- upload_frequency分类: 纯新生产者=当天注册用户, 老用户新生产者=首次上传为当天或UNKNOWN, 7天沉默生产者=T-7至T-1天未发布作品, 持续生产者=其他
+- author_range分级规则: type_A(视频作者且名人或GR用户), type_B(视频作者且MCN用户或粉丝>=5万), type_C(视频作者且粉丝>=100), type_E(非视频作者), type_D(其他)
+- is_big_v判断: 粉丝数>500万
+- upload_frequency分类: 纯新生产者(新注册用户), 老用户新生产者(首次上传当天或未知), 7天沉默生产者(T-7至T-1天未发布作品), 持续生产者(其他)
+- upload_frequency分类: 纯新生产者(新注册用户), 老用户新生产者(首次上传当天或未知), 7天沉默生产者(T-7至T-1未发布), 持续生产者(其他)
+- active_day_cnt为活跃天数

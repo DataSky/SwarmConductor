@@ -5,6 +5,7 @@ import { wsClient } from "../ws/client"
 import type { StartRunCmd } from "../ws/types"
 import styles from "./LaunchOverlay.module.css"
 import { fmtTimeAgo } from "../utils"
+import { DataAgentPanel } from "./DataAgentPanel"
 
 export function LaunchOverlay() {
   const { tabs, recentGoals, project, activeTabId, setActiveTab } = useServeStore()
@@ -17,6 +18,7 @@ export function LaunchOverlay() {
   const [aiPlan, setAiPlan]   = useState("true")
   const [error, setError]     = useState("")
   const [loading, setLoading] = useState(false)
+  const [mode, setMode]       = useState<"code" | "dataflow">("code")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isModal = tabs.length > 0
@@ -69,7 +71,27 @@ export function LaunchOverlay() {
           </>
         )}
 
-        <div className={styles.label}>Goal</div>
+        {/* ── Mode tab switcher ──────────────────────────────────────── */}
+        <div className={styles.modeTabs}>
+          <button
+            className={`${styles.modeTab} ${mode === "code" ? styles.modeTabActive : ""}`}
+            onClick={() => setMode("code")}
+          >
+            ⚡ Code Run
+          </button>
+          <button
+            className={`${styles.modeTab} ${mode === "dataflow" ? styles.modeTabActive : ""}`}
+            onClick={() => setMode("dataflow")}
+          >
+            ⬡ DataAgent
+          </button>
+        </div>
+
+        {mode === "dataflow" ? (
+          <DataAgentPanel />
+        ) : (
+          <>
+            <div className={styles.label}>Goal</div>
         <textarea
           ref={textareaRef}
           className={styles.textarea}
@@ -135,6 +157,8 @@ export function LaunchOverlay() {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

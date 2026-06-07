@@ -1,0 +1,415 @@
+---
+title: 设备
+domain: csm
+tags: [entitie, csm, entity]
+---
+# 设备
+
+用户使用的设备
+
+## primary_key
+- - **name**: device_id
+- **type**: string
+- **description**: 设备唯一标识
+
+## source_tables
+- - **table_id**: ks_dw_fact.ptc_user_device_active_di
+- **usage**: 用户设备活跃数据
+- - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- **usage**: 主表-设备活跃数据
+- - **table_id**: kscdm.dim_ks_photo_all
+- **usage**: 作品表中的device_id关联
+
+## attributes
+- - **name**: is_new_device
+- **type**: int
+- **description**: 是否新设备
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: device_bind_user_category
+- **type**: string
+- **description**: 设备绑定用户类别
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: device_active_degree
+- **type**: string
+- **description**: 设备活跃度
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: is_lowactive_period
+- **type**: int
+- **description**: 是否低活跃期
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: browse_type
+- **type**: string
+- **description**: 浏览类型
+- **category**: behavior_type
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: feed_model
+- **type**: string
+- **description**: 信息流模式
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+    - **description**: feed模式
+- - **name**: device_brand
+- **type**: string
+- **description**: 设备品牌
+- **category**: device_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: device_model
+- **type**: string
+- **description**: 设备型号
+- **category**: device_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: language
+- **type**: string
+- **description**: 语言
+- **category**: locale
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: platform
+- **type**: string
+- **description**: 平台
+- **category**: device_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: os_version
+- **type**: string
+- **description**: 操作系统版本
+- **category**: device_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: app_download_channel
+- **type**: string
+- **description**: APP下载渠道
+- **category**: channel
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: app_version
+- **type**: string
+- **description**: APP版本
+- **category**: app_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: app_major_version
+- **type**: string
+- **description**: APP主版本号
+- **category**: app_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: app_minor_version
+- **type**: string
+- **description**: APP次版本号
+- **category**: app_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: isp
+- **type**: string
+- **description**: 运营商
+- **category**: network
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: country_name
+- **type**: string
+- **description**: 国家名称
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: country_region
+- **type**: string
+- **description**: 国家区域
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: province_name
+- **type**: string
+- **description**: 省份名称
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: city_name
+- **type**: string
+- **description**: 城市名称
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: county_name
+- **type**: string
+- **description**: 区县名称
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: is_spam_device
+- **type**: int
+- **description**: 是否垃圾设备
+- **category**: risk
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: is_true_new_device
+- **type**: int
+- **description**: 是否真新设备
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: true_new_device_type
+- **type**: int
+- **description**: 真新设备类型
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: age_range
+- **type**: string
+- **description**: 年龄段
+- **category**: profile
+- **table_sources**:   -     - **table_id**: ks_uu.dws_profile_device_gender_age_v2_df
+- - **name**: is_inhabit_device
+- **type**: int
+- **description**: 是否常驻设备
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: page_style_type
+- **type**: string
+- **description**: 页面样式类型
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: device_active_deepness
+- **type**: string
+- **description**: 设备活跃深度
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: life_time
+- **type**: string
+- **description**: 生命周期阶段
+- **category**: lifecycle
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_lifetime_nd
+    - **description**: 生命周期
+- - **name**: gender
+- **type**: string
+- **description**: 性别
+- **category**: profile
+- **table_sources**:   -     - **table_id**: ks_uu.dws_profile_device_gender_age_v2_df
+- - **name**: device_price_range
+- **type**: string
+- **description**: 设备价格区间
+- **category**: device_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: city_level
+- **type**: string
+- **description**: 城市等级
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_device_daily
+- - **name**: is_install_douyin
+- **type**: int
+- **description**: 是否安装抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_douyin_nebula
+- **type**: int
+- **description**: 是否安装抖音极速版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_douyin_huoshan
+- **type**: int
+- **description**: 是否安装抖音火山版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_weishi
+- **type**: int
+- **description**: 是否安装微视
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_new_install_douyin
+- **type**: int
+- **description**: 是否新安装抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_app_install_td
+- - **name**: is_new_install_douyin_nebula
+- **type**: int
+- **description**: 是否新安装抖音极速版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_app_install_td
+- - **name**: is_new_install_douyin_huoshan
+- **type**: int
+- **description**: 是否新安装抖音火山版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_app_install_td
+- - **name**: is_new_install_weishi
+- **type**: int
+- **description**: 是否新安装微视
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_app_install_td
+- - **name**: is_collect_guide
+- **type**: int
+- **description**: 是否收藏引导
+- **category**: status
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_collect_guide_1d_mid
+- - **name**: is_yesterday_install_douyin
+- **type**: int
+- **description**: 昨日是否安装抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_yesterday_install_douyin_nebula
+- **type**: int
+- **description**: 昨日是否安装抖音极速版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_yesterday_install_douyin_huoshan
+- **type**: int
+- **description**: 昨日是否安装抖音火山版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_today_uninstall_douyin
+- **type**: int
+- **description**: 今日是否卸载抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+    - **description**: 今日/昨日安装状态对比计算
+- - **name**: is_today_uninstall_douyin_nebula
+- **type**: int
+- **description**: 今日是否卸载抖音极速版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+    - **description**: 今日/昨日安装状态对比计算
+- - **name**: is_today_uninstall_douyin_huoshan
+- **type**: int
+- **description**: 今日是否卸载抖音火山版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+    - **description**: 今日/昨日安装状态对比计算
+- - **name**: is_install_xigua
+- **type**: int
+- **description**: 是否安装西瓜视频
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_bilibili
+- **type**: int
+- **description**: 是否安装B站
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_haokanshipin
+- **type**: int
+- **description**: 是否安装好看视频
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_xiaohongshu
+- **type**: int
+- **description**: 是否安装小红书
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_jinritoutiao
+- **type**: int
+- **description**: 是否安装今日头条
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_jinritoutiao_nebula
+- **type**: int
+- **description**: 是否安装今日头条极速版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_pipixia
+- **type**: int
+- **description**: 是否安装皮皮虾
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: is_install_dongchedi
+- **type**: int
+- **description**: 是否安装懂车帝
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+- - **name**: nearby_position
+- **type**: string
+- **description**: 附近位置
+- **category**: geo
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+    - **description**: 由extra_json和browse_type计算同城位置
+- - **name**: is_tnu
+- **type**: int
+- **description**: 是否TNU
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_device_di
+- - **name**: play_photo_cnt_segment
+- **type**: string
+- **description**: 播放视频数分段
+- **category**: classification
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_active_extend_1d
+- - **name**: play_photo_cnt_segment_30d
+- **type**: string
+- **description**: 30日播放视频数分段
+- **category**: classification
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_active_extend_1d
+- - **name**: original_platform
+- **type**: string
+- **description**: 原始平台
+- **category**: device_info
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: product
+- **type**: string
+- **description**: 产品
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+- - **name**: is_visit_find
+- **type**: int
+- **description**: 是否访问发现页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_prod_device_1d
+- - **name**: is_visit_follow
+- **type**: int
+- **description**: 是否访问关注页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_prod_device_1d
+- - **name**: is_visit_nearby
+- **type**: int
+- **description**: 是否访问附近页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_prod_device_1d
+- - **name**: is_visit_profile
+- **type**: int
+- **description**: 是否访问个人主页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_prod_device_1d
+- - **name**: is_visit_featured
+- **type**: int
+- **description**: 是否访问精选页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_tfc_prod_device_1d
+- - **name**: is_today_new_install_douyin
+- **type**: int
+- **description**: 今日是否新安装抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+    - **description**: 今日/昨日安装状态对比计算
+- - **name**: is_today_new_install_douyin_jisuban
+- **type**: int
+- **description**: 今日是否新安装抖音极速版
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+    - **description**: 今日/昨日安装状态对比计算
+- - **name**: is_today_new_install_huoshan
+- **type**: int
+- **description**: 今日是否新安装火山
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_device_app_install_td
+    - **description**: 今日/昨日安装状态对比计算
+- - **name**: is_vaild_visit_featured
+- **type**: int
+- **description**: 是否有效访问精选页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_active_extend_1d
+    - **description**: 是否有效访问精选
+- - **name**: is_vaild_visit_find
+- **type**: int
+- **description**: 是否有效访问发现页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_active_extend_1d
+    - **description**: 是否有效访问发现
+- - **name**: is_vaild_visit_follow
+- **type**: int
+- **description**: 是否有效访问关注页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_active_extend_1d
+    - **description**: 是否有效访问关注
+- - **name**: is_vaild_visit_nearby
+- **type**: int
+- **description**: 是否有效访问附近页
+- **category**: visit_status
+- **table_sources**:   -     - **table_id**: ksapp.ads_ks_usr_prod_device_active_extend_1d
+    - **description**: 是否有效访问附近
+
+## relationships
+- - **target_entity**: user
+- **join_key**: user_id
+- **type**: many_to_one
+- **description**: 设备所属用户
+- - **target_entity**: user
+- **join_key**: first_user_id
+- **type**: many_to_one
+- **description**: 设备首次关联用户
+
+## business_notes
+- 分区字段: p_date, product
+- 按p_product和device_id分区，取client_timestamp和user_id排序后的第一条记录

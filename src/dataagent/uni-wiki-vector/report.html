@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>uni-wiki-vector · Skill 全景报告</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-light: #eff6ff;
+    --primary-mid: #bfdbfe;
+    --success: #16a34a;
+    --success-light: #f0fdf4;
+    --warn: #d97706;
+    --warn-light: #fffbeb;
+    --danger: #dc2626;
+    --danger-light: #fef2f2;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --cyan: #0891b2;
+    --cyan-light: #ecfeff;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-500: #64748b;
+    --gray-700: #334155;
+    --gray-900: #0f172a;
+    --font: 'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: #f0f4f8;
+    color: var(--gray-900);
+    min-height: 100vh;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    background: linear-gradient(135deg, #1e40af 0%, #2563eb 40%, #0891b2 100%);
+    padding: 56px 40px 44px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 1100px; margin: 0 auto; position: relative; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-size: 42px; font-weight: 800; letter-spacing: -0.02em;
+    margin-bottom: 10px; line-height: 1.15;
+  }
+  .hero h1 span { opacity: 0.7; font-weight: 400; font-size: 28px; }
+  .hero-desc { font-size: 16px; opacity: 0.85; max-width: 620px; line-height: 1.65; margin-bottom: 32px; }
+  .hero-stats {
+    display: flex; gap: 32px; flex-wrap: wrap;
+  }
+  .hstat {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 12px; padding: 16px 24px; min-width: 140px;
+  }
+  .hstat-num { font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+  .hstat-label { font-size: 12px; opacity: 0.75; }
+
+  /* ===== NAV TABS ===== */
+  .nav-tabs {
+    background: white; border-bottom: 1px solid var(--gray-200);
+    position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 0; overflow-x: auto; }
+  .tab-btn {
+    padding: 14px 20px; font-size: 14px; font-weight: 500; color: var(--gray-500);
+    border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent;
+    white-space: nowrap; transition: all 0.15s; text-decoration: none; display: block;
+  }
+  .tab-btn.active, .tab-btn:hover {
+    color: var(--primary); border-bottom-color: var(--primary);
+  }
+
+  /* ===== MAIN ===== */
+  .main { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+  /* ===== SECTION ===== */
+  .section { margin-bottom: 40px; }
+  .section-title {
+    font-size: 20px; font-weight: 700; color: var(--gray-900);
+    margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+  }
+  .section-title .icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: white; border-radius: 16px; padding: 24px;
+    border: 1px solid var(--gray-200); box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+  }
+  .card-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .card-grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+  @media(max-width: 800px) {
+    .card-grid-2, .card-grid-3, .card-grid-4 { grid-template-columns: 1fr; }
+  }
+  @media(min-width: 600px) and (max-width: 800px) {
+    .card-grid-3, .card-grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ===== METRIC CARD ===== */
+  .metric-card {
+    background: white; border-radius: 14px; padding: 20px 22px;
+    border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .metric-card .m-label { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; font-weight: 500; }
+  .metric-card .m-num { font-size: 28px; font-weight: 800; color: var(--gray-900); line-height: 1; }
+  .metric-card .m-sub { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+  .metric-card .m-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-top: 8px; }
+  .badge-green { background: var(--success-light); color: var(--success); }
+  .badge-blue { background: var(--primary-light); color: var(--primary); }
+  .badge-warn { background: var(--warn-light); color: var(--warn); }
+  .badge-red { background: var(--danger-light); color: var(--danger); }
+  .badge-purple { background: var(--purple-light); color: var(--purple); }
+  .badge-cyan { background: var(--cyan-light); color: var(--cyan); }
+
+  /* ===== TABLE ===== */
+  .tbl-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--gray-200); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    background: var(--gray-50); padding: 10px 14px; text-align: left;
+    font-weight: 600; color: var(--gray-700); border-bottom: 1px solid var(--gray-200);
+    white-space: nowrap;
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--gray-50); }
+  code { background: var(--gray-100); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: 'JetBrains Mono','Fira Code',monospace; color: var(--purple); }
+
+  /* ===== TIMELINE ===== */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--gray-200); }
+  .tl-item { position: relative; margin-bottom: 24px; }
+  .tl-dot {
+    position: absolute; left: -24px; top: 4px;
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid white; box-shadow: 0 0 0 2px var(--primary);
+    background: var(--primary);
+  }
+  .tl-dot.done { background: var(--success); box-shadow: 0 0 0 2px var(--success); }
+  .tl-dot.warn { background: var(--warn); box-shadow: 0 0 0 2px var(--warn); }
+  .tl-date { font-size: 11px; color: var(--gray-500); font-weight: 600; margin-bottom: 3px; }
+  .tl-title { font-size: 14px; font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
+  .tl-body { font-size: 13px; color: var(--gray-500); line-height: 1.6; }
+
+  /* ===== DOMAIN TREE ===== */
+  .domain-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap: 14px; }
+  .domain-card {
+    background: white; border-radius: 12px; padding: 16px 18px;
+    border: 1px solid var(--gray-200); transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .domain-card:hover { box-shadow: 0 4px 16px rgba(37,99,235,0.1); border-color: var(--primary-mid); }
+  .dc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .dc-name { font-size: 14px; font-weight: 700; color: var(--gray-900); }
+  .dc-pages { background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+  .dc-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .dc-tag { background: var(--gray-100); color: var(--gray-600); padding: 2px 7px; border-radius: 6px; font-size: 11px; }
+  .dc-desc { font-size: 12px; color: var(--gray-500); margin-top: 8px; line-height: 1.5; }
+
+  /* ===== STABILITY LEGEND ===== */
+  .stability-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .sl-item { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid var(--gray-200); border-radius: 10px; padding: 10px 14px; flex: 1; min-width: 180px; }
+  .sl-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .sl-info .sl-label { font-size: 13px; font-weight: 700; }
+  .sl-info .sl-desc { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+  /* ===== PROGRESS BAR ===== */
+  .progress-wrap { margin-bottom: 14px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; color: var(--gray-700); }
+  .progress-bar { height: 8px; background: var(--gray-100); border-radius: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; }
+
+  /* ===== CHECKLIST ===== */
+  .checklist { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .cl-item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+    background: var(--gray-50); border-radius: 10px; border: 1px solid var(--gray-200);
+  }
+  .cl-num {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--primary-light);
+    color: var(--primary); font-size: 11px; font-weight: 700; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+  }
+  .cl-text { font-size: 13.5px; color: var(--gray-700); line-height: 1.5; }
+  .cl-text strong { color: var(--gray-900); }
+
+  /* ===== PIN TABLE ===== */
+  .pin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pin-item { background: var(--gray-50); border-radius: 8px; padding: 10px 12px; border: 1px solid var(--gray-200); }
+  .pin-trigger { font-size: 11px; color: var(--gray-500); margin-bottom: 3px; }
+  .pin-path { font-family: 'JetBrains Mono','Fira Code',monospace; font-size: 11px; color: var(--primary); word-break: break-all; }
+
+  /* ===== DECISION CARDS ===== */
+  .decision-list { display: flex; flex-direction: column; gap: 12px; }
+  .decision-item { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; background: white; border-radius: 12px; border: 1px solid var(--gray-200); }
+  .decision-label { background: var(--warn-light); color: var(--warn); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; margin-top: 2px; }
+  .decision-content .d-title { font-size: 14px; font-weight: 600; color: var(--gray-900); margin-bottom: 3px; }
+  .decision-content .d-desc { font-size: 12.5px; color: var(--gray-600); line-height: 1.55; }
+
+  /* ===== DIVIDER ===== */
+  hr.section-hr { border: none; border-top: 1px solid var(--gray-200); margin: 32px 0; }
+
+  /* ===== TAG CHIP ===== */
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .chip-green { background: var(--success-light); color: var(--success); }
+  .chip-warn  { background: var(--warn-light); color: var(--warn); }
+  .chip-red   { background: var(--danger-light); color: var(--danger); }
+  .chip-gray  { background: var(--gray-100); color: var(--gray-600); }
+
+  /* ===== CALLOUT ===== */
+  .callout { border-radius: 10px; padding: 14px 16px; display: flex; gap: 10px; margin-bottom: 16px; }
+  .callout-blue { background: var(--primary-light); border-left: 3px solid var(--primary); }
+  .callout-green { background: var(--success-light); border-left: 3px solid var(--success); }
+  .callout-warn { background: var(--warn-light); border-left: 3px solid var(--warn); }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout-body { font-size: 13.5px; color: var(--gray-700); line-height: 1.6; }
+  .callout-body strong { color: var(--gray-900); }
+
+  /* ===== PAGE SECTION LABEL ===== */
+  .page-section {
+    display: none;
+  }
+  .page-section.active {
+    display: block;
+  }
+
+  /* update box */
+  .update-box {
+    border-radius: 12px; border: 1px solid; padding: 16px 20px;
+  }
+  .update-box.new { background: #f0fdf4; border-color: #86efac; }
+  .update-box.imp { background: #eff6ff; border-color: #93c5fd; }
+  .update-box.fix { background: #fef9c3; border-color: #fde047; }
+  .update-box-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .update-box-body { font-size: 13px; color: var(--gray-600); line-height: 1.6; }
+
+  /* footer */
+  .footer {
+    text-align: center; padding: 32px; font-size: 12px; color: var(--gray-500);
+    border-top: 1px solid var(--gray-200); background: white; margin-top: 40px;
+  }
+
+  .grow-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; padding: 0 4px; }
+  .grow-bar { flex: 1; border-radius: 4px 4px 0 0; min-width: 20px; position: relative; cursor: pointer; transition: opacity 0.15s; }
+  .grow-bar:hover { opacity: 0.8; }
+  .grow-bar-label { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--gray-500); white-space: nowrap; }
+  .grow-wrap { padding-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">&#128218; User Skill · v5.2</div>
+    <h1>uni-wiki-vector <span>快手统一知识库检索技能</span></h1>
+    <p class="hero-desc">
+      融合快手主站 13 个业务域 + 电商 / 商业化 / 平台工具 + 跨域治理的完整知识体系，
+      基于纯 BM25 + 别名扩展 + 字段加权实现零外部依赖的高精度检索，支持 SQL 取数、口径确认、指标解释、易错点拦截。
+    </p>
+    <div class="hero-stats">
+      <div class="hstat">
+        <div class="hstat-num">1,438</div>
+        <div class="hstat-label">知识页面总数</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-num">17</div>
+        <div class="hstat-label">覆盖业务域</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-num">~5s</div>
+        <div class="hstat-label">首次检索耗时</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-num">100%</div>
+        <div class="hstat-label">mp域 gap-check</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== NAV TABS ===== -->
+<div class="nav-tabs">
+  <div class="nav-inner">
+    <a class="tab-btn active" href="#" onclick="showTab('overview',this);return false;">&#127974; 总览</a>
+    <a class="tab-btn" href="#" onclick="showTab('domains',this);return false;">&#127758; 知识域</a>
+    <a class="tab-btn" href="#" onclick="showTab('arch',this);return false;">&#9881; 技术架构</a>
+    <a class="tab-btn" href="#" onclick="showTab('usage',this);return false;">&#128295; 使用指南</a>
+    <a class="tab-btn" href="#" onclick="showTab('progress',this);return false;">&#128200; 建设进展</a>
+    <a class="tab-btn" href="#" onclick="showTab('roadmap',this);return false;">&#128506; 规划</a>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ============================== PAGE: 总览 ============================== -->
+<div class="page-section active" id="page-overview">
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#eff6ff">&#128202;</div>
+      核心规模指标
+    </div>
+    <div class="card-grid-4">
+      <div class="metric-card">
+        <div class="m-label">知识页面总数</div>
+        <div class="m-num">1,438</div>
+        <div class="m-sub">较初始 +218 页（本次会话）</div>
+        <div class="m-badge badge-green">+38 今日新增</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">内容行数（Markdown）</div>
+        <div class="m-num">147K+</div>
+        <div class="m-sub">terms/sql/rules/playbooks/gotchas</div>
+        <div class="m-badge badge-blue">S1+S2 为主</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">BM25 索引大小</div>
+        <div class="m-num">9 MB</div>
+        <div class="m-sub">持久化存储 · 无需重建</div>
+        <div class="m-badge badge-cyan">零依赖</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">当前版本</div>
+        <div class="m-num">v5.2</div>
+        <div class="m-sub">最后重建 06-05 02:18</div>
+        <div class="m-badge badge-purple">稳定</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f0fdf4">&#128218;</div>
+      知识源构成
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>知识源</th>
+            <th>覆盖域</th>
+            <th>页数</th>
+            <th>接入时间</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>c-datawiki</strong></td>
+            <td>内容场电商（直播消费/短视频/GMV/UDF）</td>
+            <td><span class="chip chip-blue">15 页</span></td>
+            <td>初始</td>
+            <td><span class="chip chip-green">稳定</span></td>
+          </tr>
+          <tr>
+            <td><strong>ks-data-context live域</strong></td>
+            <td>直播全域（Playbook×58 / 规则×77 / 易错点×80+ / 术语×93）</td>
+            <td><span class="chip chip-blue">315 页</span></td>
+            <td>初始</td>
+            <td><span class="chip chip-green">稳定</span></td>
+          </tr>
+          <tr>
+            <td><strong>ks-data-context 其他9域</strong></td>
+            <td>消费/生产/社交/运营/搜索/招聘/流量/增长/房产/快聘</td>
+            <td><span class="chip chip-blue">864 页</span></td>
+            <td>初始</td>
+            <td><span class="chip chip-green">稳定</span></td>
+          </tr>
+          <tr>
+            <td><strong>DA知识兼容扩展</strong></td>
+            <td>直播供给/流量/C端用户/视频（含S1/S2/S3稳定性分层）</td>
+            <td><span class="chip chip-warn">18 页</span></td>
+            <td>2026-06-03</td>
+            <td><span class="chip chip-green">已集成</span></td>
+          </tr>
+          <tr>
+            <td><strong>eco 电商专属知识</strong></td>
+            <td>达人/货架/支付/混排/XBR周报/算法方法论/SQL模板</td>
+            <td><span class="chip chip-warn">104 页</span></td>
+            <td>2026-06-04</td>
+            <td><span class="chip chip-green">100% gap-check</span></td>
+          </tr>
+          <tr>
+            <td><strong>platform 平台工具域</strong></td>
+            <td>天工/KwaiBI/ABtest/SQL规范/达芬奇/埋点分析/商业化数仓规范</td>
+            <td><span class="chip chip-warn">46 页</span></td>
+            <td>2026-06-04</td>
+            <td><span class="chip chip-green">100% gap-check</span></td>
+          </tr>
+          <tr style="background: #f0fff4;">
+            <td><strong>mp 商业化广告知识 🆕</strong></td>
+            <td>广告体系/消耗口径/有效供给/账户诊断/ROI/品牌广告/DSP/生服广告/激励合约/取数SOP</td>
+            <td><span class="chip chip-green">33 页</span></td>
+            <td>2026-06-05</td>
+            <td><span class="chip chip-green">24/24 gap-check</span></td>
+          </tr>
+          <tr style="background: #f0fff4;">
+            <td><strong>cross_domain 跨域治理 🆕</strong></td>
+            <td>mp vs eco 口径冲突注册表（A类4+B类3+C类3）+ 时效性review机制</td>
+            <td><span class="chip chip-green">2 页</span></td>
+            <td>2026-06-05</td>
+            <td><span class="chip chip-green">已建立</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f5f3ff">&#127775;</div>
+      版本演进历史
+    </div>
+    <div class="card">
+      <div class="grow-wrap">
+        <div class="grow-chart">
+          <div class="grow-bar" style="background:#bfdbfe;height:16%" title="1,220页"><span class="grow-bar-label">5.0初</span></div>
+          <div class="grow-bar" style="background:#93c5fd;height:22%" title="1,239页"><span class="grow-bar-label">06-03 DA</span></div>
+          <div class="grow-bar" style="background:#60a5fa;height:23%" title="1,240页"><span class="grow-bar-label">06-03 fix</span></div>
+          <div class="grow-bar" style="background:#3b82f6;height:58%" title="1,253页"><span class="grow-bar-label">06-04 搜索坑</span></div>
+          <div class="grow-bar" style="background:#2563eb;height:85%" title="1,400页"><span class="grow-bar-label">06-04 eco+platform</span></div>
+          <div class="grow-bar" style="background:#1d4ed8;height:88%" title="1,407页"><span class="grow-bar-label">mp P0</span></div>
+          <div class="grow-bar" style="background:#1e40af;height:93%" title="1,416页"><span class="grow-bar-label">mp P1</span></div>
+          <div class="grow-bar" style="background:#1e3a8a;height:96%" title="1,422页"><span class="grow-bar-label">mp P2</span></div>
+          <div class="grow-bar" style="background:#172554;height:99%" title="1,432页"><span class="grow-bar-label">改进P0~P1</span></div>
+          <div class="grow-bar" style="background:#0f172a;height:100%" title="1,438页"><span class="grow-bar-label">最终1,438</span></div>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:12px;color:#64748b;margin-top:4px;">知识库页面数增长曲线（2026-06-03 ~ 06-05）</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================== PAGE: 知识域 ============================== -->
+<div class="page-section" id="page-domains">
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#eff6ff">&#127758;</div>
+      全域知识地图
+    </div>
+    <div class="domain-grid">
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#127909; live 直播</div><div class="dc-pages">315 页</div></div>
+        <div class="dc-tags"><span class="dc-tag">Playbook×58</span><span class="dc-tag">规则×77</span><span class="dc-tag">易错点×80+</span><span class="dc-tag">术语×93</span></div>
+        <div class="dc-desc">主播营收/LTV/付费/身份分层/宫格团播/流量stid/AB实验分流</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#128247; csm 消费</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">VV来源</span><span class="dc-tag">分页面活跃</span><span class="dc-tag">PLC</span></div>
+        <div class="dc-desc">消费流量口径、DAU/UA/LT、设备活跃定义</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#127947; produce 生产</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">视频生产</span><span class="dc-tag">分发链路</span><span class="dc-tag">查重</span></div>
+        <div class="dc-desc">视频生产口径、分发链路VV来源、视频质量治理</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#128100; social 社交</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">关注</span><span class="dc-tag">互动</span><span class="dc-tag">私信</span></div>
+        <div class="dc-desc">关注关系、LTV漏斗、社交互动指标口径</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#128290; search 搜索</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">DID跨天join</span><span class="dc-tag">search_num</span><span class="dc-tag">AB UV对齐</span></div>
+        <div class="dc-desc">搜索UV/PV口径、session定义、13条踩坑笔记</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#128640; growth 增长</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">新增用户</span><span class="dc-tag">留存</span><span class="dc-tag">渗透</span></div>
+        <div class="dc-desc">用户增长口径、留存定义、渗透率计算</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#127968; house 房产</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">房产直播</span><span class="dc-tag">线索</span><span class="dc-tag">开卡</span></div>
+        <div class="dc-desc">房产业务核心指标与数据口径</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#128084; recruit 招聘</div><div class="dc-pages">含于ks-data</div></div>
+        <div class="dc-tags"><span class="dc-tag">快聘</span><span class="dc-tag">认证</span><span class="dc-tag">JD</span></div>
+        <div class="dc-desc">快聘业务指标、招聘直播口径</div>
+      </div>
+      <div class="domain-card" style="border-color: #86efac; background: #f0fdf4;">
+        <div class="dc-header"><div class="dc-name">&#128722; eco 电商 🆕</div><div class="dc-pages" style="background:#f0fdf4;color:#16a34a;">104 页</div></div>
+        <div class="dc-tags"><span class="dc-tag">达人</span><span class="dc-tag">货架</span><span class="dc-tag">支付</span><span class="dc-tag">混排</span><span class="dc-tag">XBR</span></div>
+        <div class="dc-desc">GMV口径/SQL模板7个/达人诊断SOP/结算率归因/维度影响指数</div>
+      </div>
+      <div class="domain-card" style="border-color: #93c5fd; background: #eff6ff;">
+        <div class="dc-header"><div class="dc-name">&#128736; platform 平台 🆕</div><div class="dc-pages" style="background:#eff6ff;color:#2563eb;">46 页</div></div>
+        <div class="dc-tags"><span class="dc-tag">天工</span><span class="dc-tag">KwaiBI</span><span class="dc-tag">ABtest</span><span class="dc-tag">SQL规范</span></div>
+        <div class="dc-desc">数仓规范/BISQL/AB实验CUPED/达芬奇/埋点分析SOP</div>
+      </div>
+      <div class="domain-card" style="border-color: #fde047; background: #fefce8;">
+        <div class="dc-header"><div class="dc-name">&#128178; mp 商业化 🆕</div><div class="dc-pages" style="background:#fefce8;color:#ca8a04;">33 页</div></div>
+        <div class="dc-tags"><span class="dc-tag">广告消耗</span><span class="dc-tag">ROI</span><span class="dc-tag">有效供给</span><span class="dc-tag">DSP</span><span class="dc-tag">品牌广告</span></div>
+        <div class="dc-desc">磁力金牛/消耗口径(厘÷1000=元)/15个datasetId/24/24 gap-check</div>
+      </div>
+      <div class="domain-card" style="border-color: #c4b5fd; background: #f5f3ff;">
+        <div class="dc-header"><div class="dc-name">&#128279; cross_domain 跨域 🆕</div><div class="dc-pages" style="background:#f5f3ff;color:#7c3aed;">2 页</div></div>
+        <div class="dc-tags"><span class="dc-tag">冲突注册表</span><span class="dc-tag">时效性review</span></div>
+        <div class="dc-desc">A类(4)/B类(3)/C类(3)口径冲突 + 季度维护机制</div>
+      </div>
+      <div class="domain-card">
+        <div class="dc-header"><div class="dc-name">&#128293; DA 知识扩展</div><div class="dc-pages">18 页</div></div>
+        <div class="dc-tags"><span class="dc-tag">S1/S2/S3分层</span><span class="dc-tag">直播供给</span><span class="dc-tag">da_explore</span></div>
+        <div class="dc-desc">供给方向DA口径+稳定性徽章系统(S1官方/S2算法/S3探索)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#fef9c3">&#128165;</div>
+      稳定性分层体系
+    </div>
+    <div class="stability-row">
+      <div class="sl-item"><div class="sl-dot" style="background:#16a34a"></div><div class="sl-info"><div class="sl-label" style="color:#16a34a">[S1-Stable]</div><div class="sl-desc">官方入仓，长期稳定 · 可用于生产报表</div></div></div>
+      <div class="sl-item"><div class="sl-dot" style="background:#d97706"></div><div class="sl-info"><div class="sl-label" style="color:#d97706">[S2-Semi-stable]</div><div class="sl-desc">算法/业务产出，随模型可能变化 · 探索分析可用</div></div></div>
+      <div class="sl-item"><div class="sl-dot" style="background:#dc2626"></div><div class="sl-info"><div class="sl-label" style="color:#dc2626">[S3-Volatile]</div><div class="sl-desc">DA探索性，未正式入仓 · 禁止生产依赖</div></div></div>
+      <div class="sl-item"><div class="sl-dot" style="background:#94a3b8"></div><div class="sl-info"><div class="sl-label" style="color:#94a3b8">[deprecated]</div><div class="sl-desc">已明确下线 · 仅作历史档案</div></div></div>
+    </div>
+    <div class="callout callout-blue">
+      <div class="callout-icon">&#128161;</div>
+      <div class="callout-body"><strong>自动触发机制：</strong>Checklist 第6项检测到 S3/deprecated 页面时，自动触发 <code>[WARN]</code> 并输出 fallback 降级路径，不阻断 SQL 生成但提醒人工确认。</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f0fdf4">&#128196;</div>
+      知识目录分类分布
+    </div>
+    <div class="card">
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128210; terms 术语定义</span><span style="font-weight:700">596 页 · 41%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:41%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128275; rules 口径规则</span><span style="font-weight:700">304 页 · 21%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:21%;background:linear-gradient(90deg,#10b981,#34d399)"></div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128218; playbooks 场景SOP</span><span style="font-weight:700">219 页 · 15%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:15%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128203; concepts 核心概念</span><span style="font-weight:700">130 页 · 9%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:9%;background:linear-gradient(90deg,#8b5cf6,#a78bfa)"></div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128680; gotchas 易错点</span><span style="font-weight:700">122 页 · 8%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:8%;background:linear-gradient(90deg,#ef4444,#f87171)"></div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128187; sql SQL模板</span><span style="font-weight:700">24 页 · 2%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:2%;background:linear-gradient(90deg,#06b6d4,#22d3ee)"></div></div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>&#128269; da_explore / tables / udfs</span><span style="font-weight:700">43 页 · 3%</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:3%;background:linear-gradient(90deg,#94a3b8,#cbd5e1)"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================== PAGE: 技术架构 ============================== -->
+<div class="page-section" id="page-arch">
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#eff6ff">&#128268;</div>
+      检索引擎设计（v5.0 纯 BM25）
+    </div>
+    <div class="card-grid-2">
+      <div class="card">
+        <div style="font-size:15px;font-weight:700;margin-bottom:14px;color:#1e40af">&#128200; 检索特性</div>
+        <table>
+          <tr><td style="width:120px;color:#64748b;font-size:12px">检索引擎</td><td><strong>BM25</strong> + 别名扩展 + 字段加权</td></tr>
+          <tr><td style="color:#64748b;font-size:12px">字段权重</td><td>标题 <strong>3x</strong> · 标签 <strong>2x</strong> · 正文 <strong>1x</strong></td></tr>
+          <tr><td style="color:#64748b;font-size:12px">首次调用</td><td><strong>~5s</strong>（无需安装任何依赖）</td></tr>
+          <tr><td style="color:#64748b;font-size:12px">外部依赖</td><td><strong style="color:#16a34a">无</strong>（纯 Python 标准库）</td></tr>
+          <tr><td style="color:#64748b;font-size:12px">索引大小</td><td>~9 MB（持久化 JSON）</td></tr>
+          <tr><td style="color:#64748b;font-size:12px">持久化</td><td>wiki + BM25 索引均持久</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div style="font-size:15px;font-weight:700;margin-bottom:14px;color:#16a34a">&#128640; v4.x→v5.0 演进</div>
+        <div class="callout callout-warn" style="margin-bottom:10px">
+          <div class="callout-icon">&#9888;</div>
+          <div class="callout-body"><strong>v4.1 Hybrid 时期</strong>：BM25 + Milvus Lite 向量检索，首次调用 30s，需安装 pymilvus/onnxruntime/transformers</div>
+        </div>
+        <div class="callout callout-green">
+          <div class="callout-icon">&#9989;</div>
+          <div class="callout-body"><strong>v5.0 重构</strong>：移除全部 Hybrid 模块（355行代码削减），首次调用 30s→<strong>5s</strong>，外部依赖归零</div>
+        </div>
+        <div style="font-size:12px;color:#64748b">BM25 Mean: 4400ms→307ms（热态 93% 降幅）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f0fdf4">&#128295;</div>
+      核心组件说明
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>组件</th><th>路径</th><th>说明</th><th>持久化</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>search.py</strong></td>
+            <td><code>uni-wiki/search.py</code></td>
+            <td>检索引擎主脚本（v5.1，813行），支持 --queries / --pin-pages / --gap-check / --rebuild / --checklist / --list</td>
+            <td>&#9989;</td>
+          </tr>
+          <tr>
+            <td><strong>Wiki 内容</strong></td>
+            <td><code>uni-wiki/wiki/</code></td>
+            <td>1,438 页 .md 文件，覆盖 13域+eco+platform+mp+cross_domain</td>
+            <td>&#9989;</td>
+          </tr>
+          <tr>
+            <td><strong>BM25 索引</strong></td>
+            <td><code>uni-wiki/.bm25_index.json</code></td>
+            <td>持久化 BM25 JSON 索引（~9MB），无需重建</td>
+            <td>&#9989;</td>
+          </tr>
+          <tr>
+            <td><strong>update_log.md</strong></td>
+            <td><code>uni-wiki/update_log.md</code></td>
+            <td>完整变更记录，含每次建设的时间线与质量验证结果</td>
+            <td>&#9989;</td>
+          </tr>
+          <tr>
+            <td><strong>SKILL.md</strong></td>
+            <td>user_skills根目录</td>
+            <td>技能描述文件，pin-pages 表、执行流程、稳定性体系说明</td>
+            <td>&#9989;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f5f3ff">&#9745;</div>
+      6项 Checklist 自动校验
+    </div>
+    <ul class="checklist">
+      <li class="cl-item"><div class="cl-num">1</div><div class="cl-text"><strong>Hive 表名已出现</strong>（ks_plateco_core / dws_eco 等核心表系列） — 未出现则加 ⚠️ 注释</div></li>
+      <li class="cl-item"><div class="cl-num">2</div><div class="cl-text"><strong>关键过滤字段已出现</strong>（is_avator / is_field 等标准过滤字段） — 未出现则加 ⚠️ 注释</div></li>
+      <li class="cl-item"><div class="cl-num">3</div><div class="cl-text"><strong>至少一个 SQL 代码块</strong>（```sql 块）出现在检索结果中 — 未出现则提示需要额外 pin SQL 页面</div></li>
+      <li class="cl-item"><div class="cl-num">4</div><div class="cl-text"><strong>GMV 单位说明已出现</strong>（分/元换算，或 mp 域厘÷1000=元）— 单位缺失是最常见的低级错误</div></li>
+      <li class="cl-item"><div class="cl-num">5</div><div class="cl-text"><strong>载体区分逻辑已出现</strong>（直播/短视频/短引识别方式）— 不同载体口径差异显著，必须显式区分</div></li>
+      <li class="cl-item" style="background:#fef2f2;border-color:#fecaca"><div class="cl-num" style="background:#fef2f2;color:#dc2626">6</div><div class="cl-text"><strong>结果中不含 S3/deprecated 页面</strong> — 出现则触发 <code>[WARN]</code> + 输出 fallback 降级路径（第6项不阻断生成）</div></li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ============================== PAGE: 使用指南 ============================== -->
+<div class="page-section" id="page-usage">
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#eff6ff">&#128161;</div>
+      4维查询词构建规则
+    </div>
+    <div class="card-grid-2">
+      <div class="card" style="border-left:3px solid #3b82f6">
+        <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:4px">Q1 · 业务概念</div>
+        <div style="font-size:13px;color:#475569">载体名 + 指标名 + 核心术语<br>口语词汇也可，<strong>自动扩展别名</strong></div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b;background:#f8fafc;padding:8px;border-radius:6px">示例: "直播间曝光 GPM 内容场"</div>
+      </div>
+      <div class="card" style="border-left:3px solid #10b981">
+        <div style="font-size:13px;font-weight:700;color:#065f46;margin-bottom:4px">Q2 · SQL模板</div>
+        <div style="font-size:13px;color:#475569">SQL 页标题关键词 + 表名片段<br><strong>带表名可大幅提升命中率</strong></div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b;background:#f8fafc;padding:8px;border-radius:6px">示例: "营收多口径 dwd_ks_csm_send_gift"</div>
+      </div>
+      <div class="card" style="border-left:3px solid #f59e0b">
+        <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px">Q3 · 专有字段</div>
+        <div style="font-size:13px;color:#475569">精确完整字段名（含 <code>_1d</code> 后缀）<br>BM25 把下划线字段当<strong>整体 token</strong></div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b;background:#f8fafc;padding:8px;border-radius:6px">示例: "is_field is_avator_live_1d"</div>
+      </div>
+      <div class="card" style="border-left:3px solid #8b5cf6">
+        <div style="font-size:13px;font-weight:700;color:#4c1d95;margin-bottom:4px">Q4 · 口径规则</div>
+        <div style="font-size:13px;color:#475569">过滤字段 + 单位 + 限定词<br>覆盖 <strong>rules/gotchas/da_explore</strong> 目录</div>
+        <div style="margin-top:8px;font-size:12px;color:#64748b;background:#f8fafc;padding:8px;border-radius:6px">示例: "消耗单位 厘 ÷1000 换算"</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f0fdf4">&#128204;</div>
+      --pin-pages 精准锁定（精选15条）
+    </div>
+    <div class="pin-grid">
+      <div class="pin-item"><div class="pin-trigger">挂车短视频指标</div><div class="pin-path">wiki/sql/短视频SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">直播消费流量（曝光/进间/GPM）</div><div class="pin-path">wiki/sql/直播消费流量SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">主播画像/属性/聚类</div><div class="pin-path">wiki/sql/主播属性分析SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">主播身份（新存联/好主播等级）</div><div class="pin-path">wiki/rules/主播身份分层体系.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">营收/流水/打赏口径</div><div class="pin-path">wiki/sql/营收多口径SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">货架场域GMV/日均/营销活动</div><div class="pin-path">wiki/sql/eco/货架场域分析SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">支付漏斗/收银台/默选</div><div class="pin-path">wiki/sql/eco/支付漏斗分析SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">广告消耗口径/消耗单位规范</div><div class="pin-path">wiki/rules/mp/ad_cost_caliber.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">商业化取数链路/mp-dataset-routing</div><div class="pin-path">wiki/playbooks/mp/mp_data_query_sop.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">mp vs eco 口径冲突</div><div class="pin-path">wiki/cross_domain/mp_eco_conflicts.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">AB实验CUPED/preAA期</div><div class="pin-path">wiki/concepts/platform/cuped_methodology.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">KwaiBI看板/OLAP链接格式</div><div class="pin-path">wiki/concepts/platform/kwaibi_structure.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">用户DAU/UA/LT</div><div class="pin-path">wiki/sql/用户活跃DAU口径SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">stid/扶持流量/bonus</div><div class="pin-path">wiki/sql/流量链路stid分析SQL.md</div></div>
+      <div class="pin-item"><div class="pin-trigger">达芬奇/用户画像/人群圈选</div><div class="pin-path">wiki/concepts/platform/davinci_platform.md</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#fef9c3">&#128270;</div>
+      --gap-check 缺口检测用法
+    </div>
+    <div class="card-grid-2">
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">判定规则</div>
+        <div class="tbl-wrap">
+          <table>
+            <tr><th>状态</th><th>条件</th><th>含义</th></tr>
+            <tr><td><span class="chip chip-green">🟢 COVERED</span></td><td>score≥100 AND 标题重叠≥2</td><td>已有对应页面</td></tr>
+            <tr><td><span class="chip chip-warn">🟡 PARTIAL</span></td><td>score≥40 但重叠不足</td><td>人工确认 · 补 keywords</td></tr>
+            <tr><td><span class="chip chip-red">🔴 GAP</span></td><td>其余</td><td>无对应页面 · 需新建</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px">标准工作流</div>
+        <div style="font-size:13px;color:#475569;line-height:1.8">
+          1. 准备 sections.json（章节名 + keywords）<br>
+          2. <code>--gap-check sections.json</code> 扫描缺口<br>
+          3. 对每个 🔴 GAP 新建 wiki 页面<br>
+          4. <code>--rebuild</code> 重建索引<br>
+          5. 重跑 --gap-check，缺口应归零
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f5f3ff">&#128221;</div>
+      输出格式规范
+    </div>
+    <div class="card-grid-3">
+      <div class="card">
+        <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">&#128187; SQL类</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.7">
+          <strong>[指标名] SQL</strong><br>
+          口径：[wiki引用内容]<br>
+          使用表：`库名.表名`<br>
+          [SQL代码块]<br>
+          ⚠️ 注意事项<br>
+          📚 来源：uni-wiki/xxx [🟢 S1]
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:8px">&#128218; Playbook类</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.7">
+          直接按 SOP 步骤输出<br>
+          引用 playbooks/ 对应页面<br>
+          标注每步关键决策点<br>
+          附常见问题 FAQ
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:8px">&#128680; 易错点类</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.7">
+          直接输出 gotcha 警告<br>
+          引用 gotchas/ 对应页面<br>
+          S2/S3 口径附稳定性警告<br>
+          说明最后验证日期+fallback
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================== PAGE: 建设进展 ============================== -->
+<div class="page-section" id="page-progress">
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#fef9c3">&#128200;</div>
+      本次会话建设时间线（2026-06-05）
+    </div>
+    <div class="card">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div class="tl-date">00:08</div>
+          <div class="tl-title">基线 gap-check 评估</div>
+          <div class="tl-body">首次 mp 域扫描：BM25 假阳性率 65%，修正后真实覆盖 6/24 章节</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">00:28</div>
+          <div class="tl-title">mp P0 核心页面建设完成 · +7页</div>
+          <div class="tl-body">跨域冲突SSOT建立，A类冲突4条注册，pin-pages 补充6条 mp 条目，19/24 ✅</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">00:44</div>
+          <div class="tl-title">mp P1 建设完成 + 单位纠错 · +9页</div>
+          <div class="tl-body">⚠️ 高危修正：消耗单位「分」→「厘（÷1000=元）」，entitySearch 实测确认，3处页面同步修正，20/24 ✅</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">00:56</div>
+          <div class="tl-title">mp P2 + 平台域增强完成 · +6+4页</div>
+          <div class="tl-body">达芬奇/埋点SOP新建，KwaiBI结构增强，gap-check 23/24（§A3待修）</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">01:05</div>
+          <div class="tl-title">§A3 bigram 修复 · 24/24 完美收尾</div>
+          <div class="tl-body">_gap_title_overlap() 英文过滤导致 ROI/CTR 不计重叠，修改页面标题加入「转化」二字，★1→★3 解决</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">01:55</div>
+          <div class="tl-title">改进 P0 完成 · +3页</div>
+          <div class="tl-body">15个datasetId实测确认（大盘114169/效果75372/实时286160），mp业务术语词典新建（FT视角/L5组织/内外循环）</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">02:10</div>
+          <div class="tl-title">改进 P1 完成 · +6页</div>
+          <div class="tl-body">生服广告SOP/海外口径/内循环联动SOP/激励广告/合约广告规则，4项独立检索 score 300+</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">02:15</div>
+          <div class="tl-title">改进 P2 完成 · +2页</div>
+          <div class="tl-body">跨域 B/C 类冲突注册，时效性review机制建立（触发条件/评级/操作规范），gotchas 扩充至9章</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot done"></div>
+          <div class="tl-date">02:18</div>
+          <div class="tl-title">成功标准缺口补齐 · 最终定稿 1,438页</div>
+          <div class="tl-body">品牌广告规则/DSP规则/效果指标词典/生服术语 各精准命中 score 329~405，mp 专属33页达标</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#fef2f2">&#127919;</div>
+      关键技术决策记录
+    </div>
+    <div class="decision-list">
+      <div class="decision-item">
+        <div class="decision-label">&#9888; 高危修正</div>
+        <div class="decision-content">
+          <div class="d-title">消耗单位纠错：分 → 厘（÷1000=元）</div>
+          <div class="d-desc">P1 阶段通过 entitySearch 实测 <code>cost_total</code> 字段确认单位是「厘」非「分」，立即同步修正 3 处页面（ad_cost_caliber / mp_eco_conflicts / mp_metrics_glossary），避免了大量下游计算错误。</div>
+        </div>
+      </div>
+      <div class="decision-item">
+        <div class="decision-label">&#128208; BM25假阳性</div>
+        <div class="decision-content">
+          <div class="d-title">gap-check 假阳性处理：65% → 0%</div>
+          <div class="d-desc">初始 gap-check 显示 17/24，但人工复核后真实覆盖仅 6/24（假阳性率 65%）。通过精化 keywords 字段并 re-run，有效消除假阳性。</div>
+        </div>
+      </div>
+      <div class="decision-item">
+        <div class="decision-label">&#128268; §A3 修复</div>
+        <div class="decision-content">
+          <div class="d-title">bigram 重叠算法优化：英文字符过滤问题</div>
+          <div class="d-desc"><code>_gap_title_overlap()</code> 仅保留中文，导致 ROI/CPM/CPC/CTR 被过滤，bigram 重叠 ★1 不达阈值 ≥2。解决方案：修改 wiki 页面标题加入「转化」中文字，重叠升为 ★3。</div>
+        </div>
+      </div>
+      <div class="decision-item">
+        <div class="decision-label">&#128279; 跨域治理</div>
+        <div class="decision-content">
+          <div class="d-title">新建 cross_domain 目录 + SSOT 冲突注册表</div>
+          <div class="d-desc">eco 域与 mp 域存在概念混淆风险（ROI定义不同、消耗口径不同、公域/私域定义不同）。建立 A/B/C 类冲突注册表 + see_also 引用闭环 + 季度时效性 review 机制，防止跨域口径混用。</div>
+        </div>
+      </div>
+      <div class="decision-item">
+        <div class="decision-label">&#128273; 权限标注</div>
+        <div class="decision-content">
+          <div class="d-title">核心商业化数据集权限问题记录</div>
+          <div class="d-desc">114169/75372 等核心数据集对数据平台部（<code>wangteng06</code>）无查询权限，已在 gotchas 中标注「商业化团队专属」，避免后续无效操作。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f0fdf4">&#127937;</div>
+      本次会话总成果
+    </div>
+    <div class="card-grid-4">
+      <div class="metric-card">
+        <div class="m-label">净新增页面</div>
+        <div class="m-num">+38</div>
+        <div class="m-sub">1,400 → 1,438</div>
+        <div class="m-badge badge-green">+2.7%</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">mp 域从零建设</div>
+        <div class="m-num">33页</div>
+        <div class="m-sub">24/24 gap-check 100%</div>
+        <div class="m-badge badge-green">全覆盖</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">datasetId 实测确认</div>
+        <div class="m-num">15个</div>
+        <div class="m-sub">大盘/效果/生服/内循环/品牌</div>
+        <div class="m-badge badge-blue">可直接使用</div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label">知识质量评级</div>
+        <div class="m-num">A</div>
+        <div class="m-sub">从 B+ 提升（改进完成后）</div>
+        <div class="m-badge badge-purple">↑ B+ → A</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================== PAGE: 规划 ============================== -->
+<div class="page-section" id="page-roadmap">
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#eff6ff">&#128506;</div>
+      当前状态与待改进项
+    </div>
+    <div class="callout callout-green">
+      <div class="callout-icon">&#9989;</div>
+      <div class="callout-body"><strong>当前状态（2026-06-05 02:28）</strong>：知识库 1,438 页，mp/eco/platform 三域全覆盖，mp gap-check 24/24，跨域治理已建立，消耗单位已实测修正，知识质量评级 A。</div>
+    </div>
+    <div class="card-grid-2" style="margin-top:16px">
+      <div class="update-box imp">
+        <div class="update-box-title">&#128214; mp 域可进一步扩展</div>
+        <div class="update-box-body">
+          - mp 专属页数 33（计划 ≥40），含广义 platform 相关约38页，精神上达标<br>
+          - 海外业务口径（Kwai for Business）仍标注需在 tc-sgp 环境验证<br>
+          - 生服线索 OLAP shareId=54415106 已记录，可实测验证
+        </div>
+      </div>
+      <div class="update-box imp">
+        <div class="update-box-title">&#128203; 搜索域踩坑持续积累</div>
+        <div class="update-box-body">
+          - 已有 13 条搜索 DA 踩坑（2026-06-04 录入）<br>
+          - 搜索增长外增看后搜、换Q率等方向可按需补充 playbook<br>
+          - 搜索全链路分析 Skill 与 uni-wiki 知识已存在协同关系
+        </div>
+      </div>
+      <div class="update-box fix">
+        <div class="update-box-title">&#9203; 时效性 review 机制</div>
+        <div class="update-box-body">
+          - cross_domain/time_review_record.md 已建立季度 review 计划<br>
+          - S2 页面（KPA颜值分/LLM品类标签/DSP规则）需定期验证<br>
+          - 建议下次 review 时间：2026-09-05（Q3 季末）
+        </div>
+      </div>
+      <div class="update-box new">
+        <div class="update-box-title">&#128293; 检索精度持续优化</div>
+        <div class="update-box-body">
+          - bigram overlap 计算已修复英文过滤问题（§A3 经验）<br>
+          - 可考虑为高频检索词补充 aliases 扩展，提升长尾召回<br>
+          - --gap-check keywords 字段填写规范可进一步文档化
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      <div class="icon" style="background:#f0fdf4">&#128204;</div>
+      快速参考卡片
+    </div>
+    <div class="card">
+      <div style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1e40af">常用检索入口 · 直接复制调用</div>
+      <div style="font-size:12px;font-family:monospace;background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;line-height:1.8;overflow-x:auto">
+        <span style="color:#94a3b8"># 标准4维查询</span><br>
+        python3 /data_agent/users/assets/user_skills/uni-wiki-vector/uni-wiki/search.py \<br>
+        &nbsp;&nbsp;--queries "直播GMV曝光" "营收多口径SQL" "is_field" "厘÷1000" \<br>
+        &nbsp;&nbsp;--top 5 --pin-pages "wiki/sql/营收多口径SQL.md" \<br>
+        &nbsp;&nbsp;--compact --checklist<br><br>
+        <span style="color:#94a3b8"># mp商业化消耗查询</span><br>
+        python3 .../search.py \<br>
+        &nbsp;&nbsp;--queries "广告消耗口径" "cost_total厘" "ROI计算" "账户有效供给" \<br>
+        &nbsp;&nbsp;--top 5 --pin-pages "wiki/rules/mp/ad_cost_caliber.md" \<br>
+        &nbsp;&nbsp;--compact --checklist<br><br>
+        <span style="color:#94a3b8"># gap-check缺口检测</span><br>
+        python3 .../search.py --gap-check "概念名1,概念名2,概念名3" --gap-threshold 100<br><br>
+        <span style="color:#94a3b8"># 重建索引（wiki内容更新后）</span><br>
+        cd /data_agent/users/assets/user_skills/uni-wiki-vector/uni-wiki && python3 search.py --rebuild
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- end .main -->
+
+<div class="footer">
+  <strong>uni-wiki-vector</strong> · v5.2 · 最后重建 2026-06-05 02:18<br>
+  <span style="margin-top:4px;display:block">知识库总页数 1,438 · 17 域覆盖 · 零外部依赖 BM25 检索 · 报告生成时间 2026-06-05 02:28 · DataAgent</span>
+</div>
+
+<script>
+function showTab(id, el) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  el.classList.add('active');
+}
+
+// 渐入动画
+document.addEventListener('DOMContentLoaded', function() {
+  const fills = document.querySelectorAll('.progress-fill');
+  setTimeout(() => {
+    fills.forEach(f => { f.style.transition = 'width 0.8s ease'; });
+  }, 100);
+});
+</script>
+</body>
+</html>

@@ -18,10 +18,6 @@ import { mkdirSync, existsSync, readFileSync } from "fs"
 // Each sub-agent receives a prompt with clearly delimited sections so the model
 // knows exactly: what its role is, what context it inherits, what it must produce.
 
-const MAX_CONTEXT_ENTRIES = 5    // take the most recent N entries
-const MAX_ENTRY_CHARS     = 1_600 // cap each entry individually, not the whole block
-const MAX_OUTPUT_CHARS    = 80_000  // truncate runaway output before parsing
-
 interface PromptParts {
   task: import("../dag/types").TaskNode
   agentInstructions: string
@@ -181,7 +177,7 @@ export class Conductor {
       maxPerMinute: config.maxStartsPerMinute,
     })
     this.lockRegistry = new FileLockRegistry(config.fileLockTtlMs)
-    this.store = new ConductorStore(this.conductorDir, this.runId)
+    this.store = new ConductorStore(this.conductorDir, this.runId, config.sqliteBusyTimeoutMs)
     this.approvalGate = new ApprovalGate()
     this.agentInstructions = loadAgentInstructions(config.projectPath)
 
@@ -358,9 +354,9 @@ export class Conductor {
         fullPrompt = task.prompt
       } else {
         const contextEntries = this.store.getContext(task.scope)
-          .slice(-MAX_CONTEXT_ENTRIES)
-          .map(e => e.content.length > MAX_ENTRY_CHARS
-            ? { ...e, content: e.content.slice(0, MAX_ENTRY_CHARS) + "\n[…entry truncated…]" }
+          .slice(-this.config.maxContextEntries)
+          .map(e => e.content.length > this.config.maxEntryChars
+            ? { ...e, content: e.content.slice(0, this.config.maxEntryChars) + "\n[…entry truncated…]" }
             : e
           )
         const contextBlock = contextEntries.length > 0
@@ -411,8 +407,8 @@ export class Conductor {
       }
 
       // Guard against runaway output that would explode the parser / memory.
-      const fullText = rawText.length > MAX_OUTPUT_CHARS
-        ? rawText.slice(0, MAX_OUTPUT_CHARS) + "\n[output truncated by conductor]"
+      const fullText = rawText.length > this.config.maxOutputChars
+        ? rawText.slice(0, this.config.maxOutputChars) + "\n[output truncated by conductor]"
         : rawText
 
       // Worker output is the result itself; LLM output is five-section markdown.
@@ -649,6 +645,10 @@ export class Conductor {
   private emit(kind: ConductorEventKind, payload: Record<string, unknown>): void {
     const event: ConductorEvent = { kind, payload, timestamp: Date.now() }
     for (const cb of this.eventListeners) cb(event)
+    // Persist to DB so every run has a complete, replayable event trace (M1).
+    // The dedicated logEvent calls for task.completed / task.failed / sse.malformed
+    // continue to exist — this adds the remaining 12 event kinds on top.
+    try { this.store.logConductorEvent(event) } catch { /* closed DB during shutdown */ }
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────

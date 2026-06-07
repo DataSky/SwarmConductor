@@ -75,12 +75,13 @@ export async function handleDataflowRun(body: DataflowRequest): Promise<Dataflow
     ;(ex as unknown as { kind: string }).kind = kind
     return ex
   }
-  const sqlExec = mk(makeSqlWorker(instance), "sql")
-  const validateExec = mk(makeValidateWorker(), "validate")
-  const compareExec = mk(makeCompareWorker(), "compare")
 
   const projectDir = mkdtempSync(join(tmpdir(), "dataflow-"))
   const config = defaultConfig({ projectPath: projectDir, maxConcurrentAgents: body.agents ?? 1, autoApprove: true, dynamicTasks: false })
+  const sqlExec = mk(makeSqlWorker(instance, { maxRows: config.sqlWorkerMaxRows }), "sql")
+  const validateExec = mk(makeValidateWorker(), "validate")
+  const compareExec = mk(makeCompareWorker(), "compare")
+
   const conductor = new Conductor(config, undefined, undefined, [sqlExec, validateExec, compareExec])
   await conductor.initialize()
 

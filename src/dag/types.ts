@@ -247,6 +247,19 @@ export interface ConductorConfig {
   /** Backpressure: max executions allowed to *start* within any rolling 60s
    *  window (token bucket). 0 disables the window cap. */
   maxStartsPerMinute: number
+  // ── Tuneable limits (formerly hard-coded constants) ──────────────────────
+  /** Max recent context entries inlined into an agent prompt. Default 5. */
+  maxContextEntries: number
+  /** Max chars per context entry before truncation. Default 1600. */
+  maxEntryChars: number
+  /** Max chars of raw agent output before conductor truncates. Default 80 000. */
+  maxOutputChars: number
+  /** SQLite busy_timeout in ms. Default 5000. */
+  sqliteBusyTimeoutMs: number
+  /** Max events returned by the replay endpoint. Default 300. */
+  replayEventLimit: number
+  /** Max rows materialised per SQL worker result. Default 10 000. */
+  sqlWorkerMaxRows: number
 }
 
 export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<ConductorConfig, "projectPath">): ConductorConfig {
@@ -265,6 +278,12 @@ export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<Conduct
     modelMap: {},
     minStartIntervalMs: 0,    // off by default — preserves current burst behaviour
     maxStartsPerMinute: 0,    // off by default
+    maxContextEntries:  5,
+    maxEntryChars:      1_600,
+    maxOutputChars:     80_000,
+    sqliteBusyTimeoutMs: 5_000,
+    replayEventLimit:   300,
+    sqlWorkerMaxRows:   10_000,
     ...overrides,
   }
 }
@@ -304,6 +323,7 @@ export type ConductorEventKind =
   | "task.dynamic_inserted"
   | "run.completed"
   | "run.failed"
+  | "selfcheck.completed"
 
 export interface ConductorEvent {
   kind: ConductorEventKind

@@ -10,6 +10,7 @@ export function handleReplay(
   runId: string,
   goalStore: GoalStore,
   json: (data: unknown) => Response,
+  eventLimit = 300,
 ): Response {
   const meta = goalStore.getRunMeta(runId)
   if (!meta) return new Response("Run not found", { status: 404 })
@@ -34,8 +35,8 @@ export function handleReplay(
       }))
 
     const events = (db.prepare(
-      `SELECT kind, payload, timestamp FROM event_log WHERE run_id=? ORDER BY id DESC LIMIT 300`
-    ).all(runId) as Record<string, unknown>[]).reverse()
+      `SELECT kind, payload, timestamp FROM event_log WHERE run_id=? ORDER BY id DESC LIMIT ?`
+    ).all(runId, eventLimit) as Record<string, unknown>[]).reverse()
 
     const log = events.map((e) => {
       const p  = JSON.parse(e["payload"] as string) as Record<string, unknown>

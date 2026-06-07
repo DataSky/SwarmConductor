@@ -1,0 +1,590 @@
+---
+title: 视频/作品
+domain: csm
+tags: [entitie, csm, entity]
+---
+# 视频/作品
+
+DataSky平台用户发布的视频/图片作品实体
+
+## primary_key
+- - **name**: photo_id
+- **type**: bigint
+- **description**: 视频/作品唯一标识
+
+## attributes
+- - **name**: photo_type
+- **type**: string
+- **description**: 作品类型
+- **category**: basic
+- **table_sources**:   -     - **table_id**: ads_ks_usr_prod_device_summary_1d.sql
+    - **description**: 照片类型
+  -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+  -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_di
+    - **description**: 照片类型
+- - **name**: product
+- **type**: string
+- **description**: 产品线
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: upload_type
+- **type**: string
+- **description**: 上传类型
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 上传类型(SameFrame/Camera/Import等)
+- - **name**: caption
+- **type**: string
+- **description**: 作品标题/描述
+- **category**: content
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- - **name**: visible_status
+- **type**: bigint
+- **description**: 可见状态
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+    - **description**: 可见状态(0可见/2群组/-124废弃)
+- - **name**: duration
+- **type**: bigint
+- **description**: 视频时长
+- **category**: basic
+- **unit**: ms
+- **table_sources**: 
+- - **name**: server_width
+- **type**: bigint
+- **description**: 服务端宽度
+- **category**: media
+- **table_sources**: 
+- - **name**: server_height
+- **type**: bigint
+- **description**: 服务端高度
+- **category**: media
+- **table_sources**: 
+- - **name**: task_id
+- **type**: string
+- **description**: 任务ID
+- **category**: basic
+- **table_sources**: 
+- - **name**: magic_face_ids
+- **type**: array<bigint>
+- **description**: 魔表ID列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: music_id
+- **type**: bigint
+- **description**: 音乐ID
+- **category**: music
+- **table_sources**: 
+- - **name**: music_type
+- **type**: bigint
+- **description**: 音乐类型
+- **category**: music
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- - **name**: soundtrack_type
+- **type**: int
+- **description**: 配乐类型
+- **category**: music
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 配乐类型(0无/1原声/2非原声)
+- - **name**: is_delete
+- **type**: bigint
+- **description**: 是否删除
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- - **name**: browse_type_code
+- **type**: bigint
+- **description**: 浏览类型代码
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- - **name**: device_brand
+- **type**: string
+- **description**: 设备品牌
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: device_model
+- **type**: string
+- **description**: 设备型号
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: platform
+- **type**: string
+- **description**: 平台
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 客户端平台(IPHONE/ANDROID_PHONE)
+- - **name**: os_version
+- **type**: string
+- **description**: 操作系统版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: app_download_channel
+- **type**: string
+- **description**: APP下载渠道
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: app_version
+- **type**: string
+- **description**: APP版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: app_minor_version
+- **type**: string
+- **description**: APP小版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: APP小版本号
+- - **name**: app_major_version
+- **type**: string
+- **description**: APP大版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: APP大版本号
+- - **name**: network_type
+- **type**: string
+- **description**: 网络类型
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: ipv4
+- **type**: string
+- **description**: IPv4地址
+- **category**: location
+- **table_sources**: 
+- - **name**: ipv6
+- **type**: string
+- **description**: IPv6地址
+- **category**: location
+- **table_sources**: 
+- - **name**: latitude
+- **type**: double
+- **description**: 纬度
+- **category**: location
+- **table_sources**: 
+- - **name**: longitude
+- **type**: double
+- **description**: 经度
+- **category**: location
+- **table_sources**: 
+- - **name**: country_name
+- **type**: string
+- **description**: 国家名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: province_name
+- **type**: string
+- **description**: 省份名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: city_name
+- **type**: string
+- **description**: 城市名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: display_type
+- **type**: int
+- **description**: 展示类型(1:图片,2:视频)
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+    - **description**: 展示类型(1图片/2视频)
+- - **name**: kuaiying_info
+- **type**: string
+- **description**: 快影信息JSON
+- **category**: effect
+- **table_sources**: 
+- - **name**: video_texts
+- **type**: string
+- **description**: 视频文字
+- **category**: content
+- **table_sources**: 
+- - **name**: cover_title
+- **type**: string
+- **description**: 封面标题
+- **category**: content
+- **table_sources**: 
+- - **name**: is_three_piece_photo
+- **type**: int
+- **description**: 是否三段式作品
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否三连拍作品
+- - **name**: is_medium_photo
+- **type**: int
+- **description**: 是否中视频(>=3分钟)
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否中视频(时长>=3分钟)
+- - **name**: is_satisfy_crt_conds_medium_photo
+- **type**: int
+- **description**: 是否满足中视频生产条件
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: picture_type
+- **type**: string
+- **description**: 图片类型(图集|长图|单图|UNKNOWN)
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 图片类型(图集/长图/单图/UNKNOWN)
+- - **name**: upload_source
+- **type**: bigint
+- **description**: 上传来源
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- - **name**: activity_id
+- **type**: bigint
+- **description**: 活动ID
+- **category**: activity
+- **table_sources**: 
+- - **name**: flash_template_id
+- **type**: bigint
+- **description**: 快闪模板ID
+- **category**: template
+- **table_sources**: 
+- - **name**: ai_cut_template_id
+- **type**: bigint
+- **description**: AI剪辑模板ID
+- **category**: template
+- **table_sources**: 
+- - **name**: picture_template_ids
+- **type**: array<string>
+- **description**: 图片模板ID列表
+- **category**: template
+- **table_sources**: 
+- - **name**: edit_magic_face_ids
+- **type**: array<bigint>
+- **description**: 编辑魔表ID列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: edit_bubble_text
+- **type**: array<string>
+- **description**: 编辑气泡文字
+- **category**: effect
+- **table_sources**: 
+- - **name**: edit_bubble_name
+- **type**: array<string>
+- **description**: 编辑气泡名称
+- **category**: effect
+- **table_sources**: 
+- - **name**: edit_effect_ids
+- **type**: array<string>
+- **description**: 编辑特效ID列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: font_name
+- **type**: array<string>
+- **description**: 字体名称列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: ky_template_id
+- **type**: bigint
+- **description**: 快影模板ID
+- **category**: template
+- **table_sources**: 
+- - **name**: hashtag_name
+- **type**: array<string>
+- **description**: 话题标签名称
+- **category**: content
+- **table_sources**: 
+- - **name**: is_coin_photo
+- **type**: int
+- **description**: 是否金币作品
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: challenge_sticker_id
+- **type**: bigint
+- **description**: 挑战贴纸ID
+- **category**: effect
+- **table_sources**: 
+- - **name**: is_long_video
+- **type**: int
+- **description**: 是否长视频
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: duration_type
+- **type**: string
+- **description**: 时长类型分段
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 时长分段类型
+- - **name**: is_from_local_album
+- **type**: int
+- **description**: 是否来自本地相册
+- **category**: source
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_makeup
+- **type**: int
+- **description**: 是否使用美妆
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: makeup_ids
+- **type**: array<bigint>
+- **description**: 美妆ID列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: is_record_body
+- **type**: int
+- **description**: 是否录制美体
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否使用美体
+- - **name**: applied_camera_type
+- **type**: int
+- **description**: 应用的摄像头类型
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 使用的摄像头类型(1/2/3前后置)
+- - **name**: record_aspect_ratio
+- **type**: string
+- **description**: 录制宽高比
+- **category**: media
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 录制画面比例
+- - **name**: is_flashlight
+- **type**: int
+- **description**: 是否使用闪光灯
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_change_speed
+- **type**: int
+- **description**: 是否使用变速
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_timing_stop
+- **type**: int
+- **description**: 是否定时停止
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否使用定时停止
+- - **name**: is_count_down
+- **type**: int
+- **description**: 是否倒计时
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否使用倒计时
+- - **name**: is_change_voice
+- **type**: int
+- **description**: 是否变声
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否使用变声
+- - **name**: is_effect
+- **type**: int
+- **description**: 是否使用特效
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_magic_finger
+- **type**: int
+- **description**: 是否使用涂鸦
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_clip
+- **type**: int
+- **description**: 是否剪辑
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否使用剪辑
+- - **name**: sticker_styles
+- **type**: array<string>
+- **description**: 贴纸样式列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: is_vote_sticker
+- **type**: int
+- **description**: 是否投票贴纸
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否使用投票贴纸
+- - **name**: texts
+- **type**: array<string>
+- **description**: 文字列表
+- **category**: content
+- **table_sources**: 
+- - **name**: is_set_manual_cover
+- **type**: int
+- **description**: 是否手动设置封面
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 是否设置手动封面
+- - **name**: manual_cover_text
+- **type**: string
+- **description**: 手动封面文字
+- **category**: content
+- **table_sources**: 
+- - **name**: applied_beauty_type
+- **type**: int
+- **description**: 应用的美颜类型
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 使用的美颜类型
+- - **name**: record_beauty_ids
+- **type**: array<bigint>
+- **description**: 录制美颜ID列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: edit_beauty_id
+- **type**: bigint
+- **description**: 编辑美颜ID
+- **category**: effect
+- **table_sources**: 
+- - **name**: applied_filter_type
+- **type**: int
+- **description**: 应用的滤镜类型
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 使用的滤镜类型
+- - **name**: record_filter_ids
+- **type**: array<bigint>
+- **description**: 录制滤镜ID列表
+- **category**: effect
+- **table_sources**: 
+- - **name**: edit_filter_id
+- **type**: bigint
+- **description**: 编辑滤镜ID
+- **category**: effect
+- **table_sources**: 
+- - **name**: is_photo_download_deny
+- **type**: int
+- **description**: 是否禁止下载
+- **category**: permission
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_same_frame_tag_enabled
+- **type**: int
+- **description**: 是否启用同框标签
+- **category**: effect
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_disable_nearby_show
+- **type**: int
+- **description**: 是否禁止附近展示
+- **category**: permission
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: music_channel_id
+- **type**: bigint
+- **description**: 音乐频道ID
+- **category**: music
+- **table_sources**: 
+- - **name**: photo_music_source
+- **type**: string
+- **description**: 作品音乐来源
+- **category**: music
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: photo_music_type
+- **type**: string
+- **description**: 作品音乐类型
+- **category**: music
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: kuaishan_info
+- **type**: string
+- **description**: 快闪信息
+- **category**: effect
+- **table_sources**: 
+- - **name**: live_clip
+- **type**: string
+- **description**: 直播剪辑信息
+- **category**: source
+- **table_sources**: 
+- - **name**: from_main_table
+- **type**: boolean
+- **description**: 是否来自主表
+- **category**: system
+- **table_sources**: 
+- - **name**: extra_json
+- **type**: string
+- **description**: 扩展JSON信息
+- **category**: extra
+- **table_sources**: 
+- - **name**: photo_source_type
+- **type**: string
+- **description**: 作品来源类型(拍摄|加工|过路)
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 作品来源类型(拍摄/加工/过路)
+- - **name**: meta_content_type
+- **type**: int
+- **description**: 元内容类型(0:图片,1:视频)
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 元内容类型(0图片/1视频)
+- - **name**: first_edit_category
+- **type**: string
+- **description**: 一级编辑分类
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 一级编辑分类(DataSky拍摄/原生相机/非原生相机)
+- - **name**: second_edit_category
+- **type**: string
+- **description**: 二级编辑分类
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: edit_app_name
+- **type**: string
+- **description**: 编辑APP名称
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+    - **description**: 编辑应用名称(抖音/剪映/快影等)
+- - **name**: photo_edit_platform
+- **type**: string
+- **description**: 作品编辑平台
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: is_ky_aigc
+- **type**: int
+- **description**: 是否快影AIGC作品
+- **category**: classification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_photo_all
+- - **name**: ky_aigc_type_list
+- **type**: array<string>
+- **description**: 快影AIGC类型列表
+- **category**: classification
+- **table_sources**: 
+
+## relationships
+- - **target_entity**: user
+- **join_key**: author_id
+- **type**: many_to_one
+- **description**: 作品作者
+- - **target_entity**: user
+- **join_key**: delete_user_id
+- **type**: many_to_one
+- **description**: 删除操作用户
+- - **target_entity**: device
+- **join_key**: device_id
+- **type**: many_to_one
+- **description**: 上传设备
+- - **target_entity**: poi
+- **join_key**: poi_id
+- **type**: many_to_one
+- **description**: 关联POI地点
+- - **target_entity**: music
+- **join_key**: music_id
+- **type**: many_to_one
+- **description**: 关联音乐
+
+## source_tables
+- - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- **usage**: 作品上传binlog数据主表
+- - **table_id**: kscdm.dim_ks_photo_all_mid
+- **usage**: 昨日历史全量视频信息
+- - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid2
+- **usage**: 当日上传视频属性信息
+- - **table_id**: ks_raw_log_v3.photo_upload_data_event
+- **usage**: 上传事件日志-用于过滤压测设备
+- - **table_id**: ks_raw_log_v3.mmu_photo_score
+- **usage**: MMU模型打分-三段式识别
+- - **table_id**: kscdm.dwd_ks_crt_upload_photo_di
+- **usage**: 上传照片数据表
+- - **table_id**: kscdm.dim_ks_photo_all
+- **usage**: 历史作品维度表(df_yesterday)
+
+## business_notes
+- 三段式识别: MMU模型type=113(1分钟以上)或type=77(1分钟以下)
+- 满足中视频生产条件: duration >= 60000 且 photo_type='NORMAL' 且 is_delete=0 且 visible_status=0
+- photo_source_type分为三类: 拍摄(使用摄像头)、加工(有编辑操作)、过路(无编辑)
+- photo_type = 'NORMAL' 过滤普通类型照片
+- 过滤压测设备上传的数据: default.is_prod_device()=false
+- 过滤风险作品: is_risk = 0
+- is_satisfy_crt_conds_medium_photo: 时长>=1分钟(60000ms)且满足中视频生产条件
+- 过滤upload_source != 13的作品
+- 中视频判断条件: photo_type='NORMAL', upload_type在指定列表内, is_delete=0, visible_status=0, duration>0
+- 中视频定义: duration >= 3*60000 (3分钟)
+- photo_source_type分类: 拍摄(使用摄像头)/加工(有编辑操作)/过路(无编辑)
+- duration单位为毫秒(ms),需除以1000转换为秒
+- is_medium_photo: 时长>=3分钟(180000ms)
+- visible_status: 0可见, 2群组, -124废弃状态

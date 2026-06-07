@@ -1,0 +1,710 @@
+---
+title: 用户
+domain: csm
+tags: [entitie, csm, entity]
+---
+# 用户
+
+DataSky平台用户实体
+
+## primary_key
+- - **name**: user_id
+- **type**: bigint
+- **description**: 用户唯一标识
+
+## source_tables
+- - **table_id**: kscdm.dim_ks_user_df
+- **usage**: 用户基础信息主表
+- - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- **usage**: 用户活跃信息
+- - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- **usage**: 用户APP安装信息
+- - **table_id**: ks_dw_fact.live_author_df
+- **usage**: 直播作者信息
+- - **table_id**: ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot
+- **usage**: 直播权限状态
+- - **table_id**: ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot
+- **usage**: 用户手机号信息
+- - **table_id**: kscdm.dim_ks_photo
+- **usage**: 作品表判断是否作者
+- - **table_id**: ks_db_origin.gifshow_user_properties_dt_snapshot
+- **usage**: 用户弹幕开关属性
+- - **table_id**: ks_dw_fact.ptc_user_device_active_di
+- **usage**: 用户设备活跃数据
+- - **table_id**: g
+- **usage**: 用户设备关联数据
+- - **table_id**: g表
+- **usage**: 用户设备关联数据
+- - **table_id**: g表(子查询)
+- **usage**: 用户设备关联数据
+- - **table_id**: kscdm.dwd_ks_soc_follow_df
+- **usage**: 关注关系明细表
+- - **table_id**: kscdm.dwd_ks_crt_upload_photo_hi_mid1
+- **usage**: 作品表中的author_id关联
+
+## attributes
+- - **name**: user_name
+- **type**: string
+- **description**: 用户名
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 用户名
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: birthday
+- **type**: string
+- **description**: 生日
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 生日
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: constellation
+- **type**: string
+- **description**: 星座
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 星座
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: user_type
+- **type**: bigint
+- **description**: 用户类型
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 用户类型
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: profile_text
+- **type**: string
+- **description**: 个人简介
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 个人简介
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: location
+- **type**: string
+- **description**: 位置
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 位置
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: user_status
+- **type**: bigint
+- **description**: 用户状态
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 用户状态
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: phone
+- **type**: string
+- **description**: 手机号
+- **category**: contact
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 手机号
+  -     - **table_id**: ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot
+- - **name**: email
+- **type**: string
+- **description**: 邮箱
+- **category**: contact
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 邮箱
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: is_big_head_image
+- **type**: bigint
+- **description**: 是否大头像
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否大头像
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: head_url
+- **type**: string
+- **description**: 头像URL
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 头像URL
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: background_url
+- **type**: string
+- **description**: 背景图URL
+- **category**: profile
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 背景图URL
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: v_type
+- **type**: string
+- **description**: V认证类型
+- **category**: verification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: V认证类型
+  -     - **table_id**: kscdm.dim_ks_user_df
+    - **description**: 认证类型
+- - **name**: v_name
+- **type**: string
+- **description**: V认证名称
+- **category**: verification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: V认证名称
+  -     - **table_id**: kscdm.dim_ks_user_df
+    - **description**: 认证名称
+- - **name**: is_v
+- **type**: bigint
+- **description**: 是否V认证
+- **category**: verification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否V认证
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: is_verified
+- **type**: bigint
+- **description**: 是否已认证
+- **category**: verification
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否已认证
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: is_privacy_user
+- **type**: bigint
+- **description**: 是否隐私用户
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否隐私用户
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: is_social_ban
+- **type**: bigint
+- **description**: 是否社交封禁
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否社交封禁
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: is_ban
+- **type**: bigint
+- **description**: 是否封禁
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否封禁
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: is_spam_user
+- **type**: bigint
+- **description**: 是否垃圾用户
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否垃圾用户
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: kwai_id
+- **type**: string
+- **description**: DataSkyID
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: DataSkyID
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: kwai_id_create_timestamp
+- **type**: timestamp
+- **description**: DataSkyID创建时间
+- **category**: identity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: DataSkyID创建时间
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_day_cnt
+- **type**: bigint
+- **description**: 注册天数
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册天数
+- - **name**: reg_timestamp
+- **type**: timestamp
+- **description**: 注册时间戳
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册时间戳
+  -     - **table_id**: kscdm.dim_ks_user_df
+    - **description**: 注册时间
+- - **name**: reg_ipv4
+- **type**: string
+- **description**: 注册IPv4
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册IPv4
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_ipv6
+- **type**: string
+- **description**: 注册IPv6
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册IPv6
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: reg_channel
+- **type**: bigint
+- **description**: 注册渠道
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册渠道
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_channel_desc
+- **type**: string
+- **description**: 注册渠道描述
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册渠道描述
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: reg_country
+- **type**: string
+- **description**: 注册国家
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册国家
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_province
+- **type**: string
+- **description**: 注册省份
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册省份
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_city
+- **type**: string
+- **description**: 注册城市
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册城市
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_country_region
+- **type**: string
+- **description**: 注册国家区域(南北方)
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册国家区域(南北方)
+  -     - **table_id**: kscdm.dim_ks_user_df
+    - **description**: 注册地区(南北方)
+- - **name**: reg_device_id
+- **type**: string
+- **description**: 注册设备ID
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册设备ID
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_product
+- **type**: string
+- **description**: 注册产品
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册产品
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: reg_platform
+- **type**: string
+- **description**: 注册平台
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 注册平台
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: feed_model
+- **type**: string
+- **description**: Feed模式
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: Feed模式
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 信息流模式
+- - **name**: browse_type
+- **type**: string
+- **description**: 浏览模式(单双列)
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 浏览模式(单双列)
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 浏览类型(单双列)
+- - **name**: device_brand
+- **type**: string
+- **description**: 设备品牌
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 设备品牌
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: device_model
+- **type**: string
+- **description**: 设备型号
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 设备型号
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: platform
+- **type**: string
+- **description**: 平台
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 平台
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: language
+- **type**: string
+- **description**: 语言
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 语言
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: os_version
+- **type**: string
+- **description**: 操作系统版本
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 操作系统版本
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: app_version
+- **type**: string
+- **description**: APP版本
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: APP版本
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: app_minor_version
+- **type**: string
+- **description**: APP小版本
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: APP小版本
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: APP小版本号
+- - **name**: app_major_version
+- **type**: string
+- **description**: APP大版本
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: APP大版本
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: APP大版本号
+- - **name**: app_download_channel
+- **type**: string
+- **description**: APP下载渠道
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: APP下载渠道
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: first_app_version
+- **type**: string
+- **description**: 首次APP版本
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次APP版本
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: first_app_major_version
+- **type**: string
+- **description**: 首次APP大版本
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次APP大版本
+  -     - **table_id**: kscdm.dim_ks_user_all
+    - **description**: 首次APP大版本号
+- - **name**: first_app_minor_version
+- **type**: string
+- **description**: 首次APP小版本
+- **category**: app
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次APP小版本
+  -     - **table_id**: kscdm.dim_ks_user_all
+    - **description**: 首次APP小版本号
+- - **name**: isp
+- **type**: string
+- **description**: 运营商
+- **category**: network
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 运营商
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: country_name
+- **type**: string
+- **description**: 国家名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 国家名称
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: country_region
+- **type**: string
+- **description**: 国家区域
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 国家区域
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 国家地区
+- - **name**: province_name
+- **type**: string
+- **description**: 省份名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 省份名称
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: city_name
+- **type**: string
+- **description**: 城市名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 城市名称
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: city_level
+- **type**: string
+- **description**: 城市等级
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 城市等级
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: county_name
+- **type**: string
+- **description**: 区县名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 区县名称
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: first_country_name
+- **type**: string
+- **description**: 首次国家名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次国家名称
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: first_province_name
+- **type**: string
+- **description**: 首次省份名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次省份名称
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: first_city_name
+- **type**: string
+- **description**: 首次城市名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次城市名称
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: first_county_name
+- **type**: string
+- **description**: 首次区县名称
+- **category**: location
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次区县名称
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: is_install_douyin
+- **type**: bigint
+- **description**: 是否安装抖音
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装抖音
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_install_huoshan
+- **type**: bigint
+- **description**: 是否安装火山
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装火山
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_install_huya
+- **type**: bigint
+- **description**: 是否安装虎牙
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装虎牙
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_install_douyu
+- **type**: bigint
+- **description**: 是否安装斗鱼
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装斗鱼
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_install_wzry
+- **type**: bigint
+- **description**: 是否安装王者荣耀
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装王者荣耀
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_install_cjzc
+- **type**: bigint
+- **description**: 是否安装和平精英
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装和平精英
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_install_xigua
+- **type**: bigint
+- **description**: 是否安装西瓜视频
+- **category**: app_install
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否安装西瓜视频
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_today_active
+- **type**: bigint
+- **description**: 是否当天活跃
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否当天活跃
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: is_reg_user
+- **type**: bigint
+- **description**: 是否新注册用户
+- **category**: registration
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否新注册用户
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: first_active_date
+- **type**: string
+- **description**: 首次活跃日期
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 首次活跃日期
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: last_active_date
+- **type**: string
+- **description**: 最后活跃日期
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 最后活跃日期
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: active_day_cnt
+- **type**: bigint
+- **description**: 活跃天数
+- **category**: activity
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 活跃天数
+- - **name**: fans_user_num
+- **type**: bigint
+- **description**: 粉丝数
+- **category**: social
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 粉丝数
+- - **name**: follow_user_num
+- **type**: bigint
+- **description**: 关注数
+- **category**: social
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 关注数
+- - **name**: friend_user_num
+- **type**: bigint
+- **description**: 好友数
+- **category**: social
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 好友数
+- - **name**: is_photo_author
+- **type**: bigint
+- **description**: 是否作品作者
+- **category**: creator
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否作品作者
+  -     - **table_id**: kscdm.dim_ks_photo
+- - **name**: is_live_author
+- **type**: bigint
+- **description**: 是否直播作者
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否直播作者
+  -     - **table_id**: ks_dw_fact.live_author_df
+- - **name**: is_new_live_author
+- **type**: bigint
+- **description**: 是否新直播作者
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否新直播作者
+  -     - **table_id**: ks_dw_fact.live_author_df
+- - **name**: is_new_live_audience
+- **type**: bigint
+- **description**: 是否新直播观众
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否新直播观众
+  -     - **table_id**: kscdm.dim_ks_user_all
+- - **name**: is_live_authority_now
+- **type**: bigint
+- **description**: 当前是否有直播权限
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 当前是否有直播权限
+  -     - **table_id**: ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot
+- - **name**: live_authority_status
+- **type**: bigint
+- **description**: 直播权限状态
+- **category**: live
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 直播权限状态
+  -     - **table_id**: ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot
+- - **name**: extra_json
+- **type**: string
+- **description**: 扩展JSON信息
+- **category**: extra
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 扩展JSON信息
+  -     - **table_id**: kscdm.dws_ks_usr_user_app_install_td
+- - **name**: is_open_horizontal_danmaku
+- **type**: bigint
+- **description**: 是否开启横屏弹幕
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否开启横屏弹幕
+  -     - **table_id**: ks_db_origin.gifshow_user_properties_dt_snapshot
+- - **name**: is_open_vertical_danmaku
+- **type**: bigint
+- **description**: 是否开启竖屏弹幕
+- **category**: preference
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否开启竖屏弹幕
+  -     - **table_id**: ks_db_origin.gifshow_user_properties_dt_snapshot
+- - **name**: original_platform
+- **type**: string
+- **description**: 原始平台
+- **category**: device
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 原始平台
+  -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+- - **name**: is_ban_spam_user
+- **type**: bigint
+- **description**: 是否封禁垃圾用户
+- **category**: status
+- **table_sources**:   -     - **table_id**: kscdm.dim_ks_user_df, kscdm.dwd_ks_usr_prod_user_active_df, kscdm.dws_ks_usr_user_app_install_td, ks_dw_fact.live_author_df, ks_db_origin.gifshow_live_stream_auth_status_dt_snapshot, ks_db_origin.gifshow_mobile_passport_by_user_dt_snapshot, kscdm.dim_ks_photo, ks_db_origin.gifshow_user_properties_dt_snapshot
+    - **description**: 是否封禁垃圾用户
+  -     - **table_id**: kscdm.dim_ks_user_df
+- - **name**: first_user_id
+- **type**: bigint
+- **description**: 首次用户ID
+- **category**: basic
+- **table_sources**:   -     - **table_id**: kscdm.dws_ks_usr_prod_device_active_1d
+    - **description**: 首次用户ID
+- - **name**: product
+- **type**: string
+- **description**: 产品线
+- **category**: product
+- **table_sources**:   -     - **table_id**: kscdm.dwd_ks_usr_prod_user_active_df
+    - **description**: 产品线
+
+## relationships
+- - **target_entity**: device
+- **join_key**: reg_device_id
+- **type**: many_to_one
+- **description**: 用户注册设备
+- - **target_entity**: photo
+- **join_key**: user_id
+- **type**: one_to_many
+- **description**: 用户发布的作品
+- - **target_entity**: device
+- **join_key**: device_id
+- **type**: one_to_many
+- **description**: 用户关联的设备
+- - **target_entity**: photo
+- **join_key**: author_id
+- **type**: one_to_many
+- **description**: 用户发布的作品
+
+## business_notes
+- os_version等同于system_version，保持与user_daily的逻辑一致
+- 2026.03切换新表后，老表默认值UNKNOWN在新表均已置0
+- 弹幕开关根据product区分KUAISHOU和NEBULA取不同字段
+- target_user_id > 0
+- user_id不是未登录用户并且当天是活跃用户则判断其为当天活跃
+- user_id > 0 过滤有效粉丝
+- 排除官方账号: user_id != 90041 and target_user_id != 90041
+- property_type = 40 表示弹幕开关
+- 统计日期分区: p_date = '{{ ds_nodash }}'
+- 初始化时以2018年0101开始计算最早和最晚活跃日期
+- city_level通过省份判断是否为大陆地区
+- user_id > 0 过滤有效用户
+- target_user_id > 0 过滤有效用户
+- timestamp类属性暂时不作兜底
+- 仅统计特定关注来源: follow_stack_last_name in ('热门','滑滑板发现页','底部导航-精选关注')
+- 仅统计特定发现渠道的关注: follow_stack_last_name in ('热门','滑滑板发现页','底部导航-精选关注')
+- author_id > 0 过滤条件用于直播作者和作品作者判断
+- 关注来源限定: follow_stack_last_name in ('热门','滑滑板发现页','底部导航-精选关注')
+- 以2018年0101开始来计算最早和最晚活跃日期
+- 如果user_id为空或0，使用rand(1)*(-100000)生成负数作为join_key
+- 限定关注来源渠道: follow_stack_last_name in ('热门','滑滑板发现页','底部导航-精选关注')
+- user_id > 0 过滤有效关注者
+- is_privacy_user: 2026.03切换新表后老表默认值UNKNOWN在新表均已置0
+- user_id > 0
+- user_id is not null and user_id != 0

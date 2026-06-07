@@ -1,0 +1,344 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 0 2px;
+}
+
+/* ── Config row ─────────────────────────────────────────────────────── */
+.configRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.configItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 180px;
+}
+.configLabel {
+  font-size: 10px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.input {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  min-width: 0;
+}
+.input:focus { outline: none; border-color: var(--cyan); }
+
+/* ── Question area ──────────────────────────────────────────────────── */
+.questionRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.questionInput {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 70px;
+  line-height: 1.6;
+}
+.questionInput:focus { outline: none; border-color: var(--cyan); }
+
+.runBtn {
+  flex-shrink: 0;
+  padding: 10px 20px;
+  background: var(--cyan);
+  color: var(--bg);
+  border: none;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 100px;
+  justify-content: center;
+}
+.runBtn:hover    { opacity: 0.85; }
+.runBtn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Examples ───────────────────────────────────────────────────────── */
+.examples { display: flex; flex-direction: column; gap: 6px; }
+.exampleList { display: flex; flex-wrap: wrap; gap: 6px; }
+.exampleBtn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.1s, color 0.1s;
+}
+.exampleBtn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* ── Error banner ───────────────────────────────────────────────────── */
+.errorBanner {
+  background: rgba(248,81,73,0.1);
+  border: 1px solid var(--red);
+  border-radius: 5px;
+  color: var(--red);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+/* ── Steps container ────────────────────────────────────────────────── */
+.steps { display: flex; flex-direction: column; gap: 6px; }
+
+.initialLoader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+  font-size: 12px;
+  padding: 12px 4px;
+}
+
+/* ── Step cards ─────────────────────────────────────────────────────── */
+.stepCard {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg2);
+}
+.stepAnswer {
+  border-color: var(--cyan);
+  background: rgba(88,166,255,0.04);
+}
+.stepError {
+  border-color: var(--red);
+  background: rgba(248,81,73,0.04);
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg3);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  border-bottom: 1px solid transparent;
+}
+.stepCard:has(.stepBody) .stepHeader,
+.stepCard:has(.thinkingText) .stepHeader,
+.stepCard:has(.answerBody) .stepHeader,
+.stepCard:has(.errorText) .stepHeader {
+  border-bottom-color: var(--border);
+}
+
+.stepIcon  { font-size: 14px; flex-shrink: 0; }
+.stepLabel { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.expandHint { color: var(--dim); font-size: 10px; flex-shrink: 0; margin-left: auto; }
+
+.spinnerDot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  border: 2px solid var(--cyan);
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.errorDot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  flex-shrink: 0;
+}
+
+.stepBody {
+  padding: 10px 12px;
+  background: var(--bg);
+}
+
+.thinkingText {
+  padding: 8px 12px;
+  color: var(--dim);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg);
+}
+
+.errorText {
+  padding: 8px 12px;
+  color: var(--red);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: var(--bg);
+}
+
+.answerBody {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg);
+}
+.answerBody h1, .answerBody h2, .answerBody h3 {
+  color: var(--cyan);
+  margin: 10px 0 6px;
+}
+.answerBody h1 { font-size: 16px; }
+.answerBody h2 { font-size: 14px; }
+.answerBody h3 { font-size: 13px; }
+.answerBody strong { color: var(--text); }
+.answerBody code {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.answerBody ul { padding-left: 20px; margin: 4px 0; }
+.answerBody li { margin: 2px 0; }
+
+/* ── SQL table ──────────────────────────────────────────────────────── */
+.tableWrap { overflow-x: auto; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.table th {
+  background: var(--bg3);
+  color: var(--dim);
+  font-weight: normal;
+  text-align: left;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table td {
+  padding: 3px 10px;
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+  color: var(--text);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: rgba(255,255,255,0.02); }
+.tableFooter { font-size: 10px; color: var(--dim); padding: 4px 2px 0; }
+
+/* ── Schema display ─────────────────────────────────────────────────── */
+.tableList { display: flex; flex-wrap: wrap; gap: 6px; }
+.tableTag {
+  background: rgba(88,166,255,0.12);
+  border: 1px solid rgba(88,166,255,0.3);
+  color: var(--cyan);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.colRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(48,54,61,0.3);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.colRow:last-child { border-bottom: none; }
+.colName { color: var(--text); min-width: 120px; }
+.colType { color: var(--dim); }
+
+/* ── Python output ──────────────────────────────────────────────────── */
+.pyImage {
+  max-width: 100%;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.pyOutput {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--bg3);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+/* ── Raw ────────────────────────────────────────────────────────────── */
+.rawPre {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.emptyMsg { color: var(--dim); font-size: 12px; }
+
+/* ── Wiki results ───────────────────────────────────────────────── */
+.wikiWarning {
+  color: var(--yellow);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.wikiPageList { display: flex; flex-direction: column; gap: 4px; }
+.wikiPageRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 2px 0;
+}
+.wikiStability { flex-shrink: 0; min-width: 100px; }
+.wikiPath { color: var(--cyan); flex-shrink: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wikiTitle { color: var(--dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wikiScore { color: var(--dim); flex-shrink: 0; font-size: 10px; }
+.wikiChecklist {
+  margin-top: 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.wikiChecklist summary { color: var(--dim); padding: 4px 0; }
+.wikiChecklist pre { color: var(--dim); font-size: 10px; white-space: pre-wrap; margin: 4px 0 0; }
+
+/* ── Spinner animation ──────────────────────────────────────────────── */
+.spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
