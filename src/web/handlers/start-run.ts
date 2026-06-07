@@ -2,7 +2,7 @@ import { Conductor } from "../../conductor"
 import { defaultConfig } from "../../dag/types"
 import { aiGoalToTaskGraph } from "../../cli/ai-planner"
 import { goalToTaskGraph } from "../../cli/goal-planner"
-import { AgentProcessManager } from "../../runtime/agent-manager"
+import { AgentProcessManager, terminate } from "../../runtime/agent-manager"
 import { WebDashboard } from "../server"
 import type { GoalStore } from "../goal-store"
 import type { WarmPool } from "../../runtime/warm-pool"
@@ -134,7 +134,8 @@ export async function handleStartRun(opts: {
     }
   } catch (err) {
     clearInterval(planningTimer)
-    for (const ws of warmSlots) try { ws.process.kill() } catch { /* ignore */ }
+    // Planning failed before any agent was adopted — reclaim the warm slots.
+    for (const ws of warmSlots) void terminate(ws.process)
     sendError(`Planning failed: ${(err as Error).message}`, tabId)
     return
   }
@@ -186,6 +187,10 @@ export async function handleStartRun(opts: {
   } catch (err) {
     sendError(`Agent spawn failed: ${(err as Error).message}`, tabId)
     slot.status = "failed"
+    // Warm agents were already adopted into the conductor's agentMgr above, so
+    // dashboard.stop() alone would orphan their processes. shutdown() drains
+    // and terminates the full agent pool.
+    await conductor.shutdown().catch(() => {})
     slot.cleanup()
     portPool.release(nextBasePort)
     slots.delete(tabId)

@@ -5,6 +5,7 @@ import { PortPool } from "./handlers/port-pool"
 import { handleStartRun, forwardToSlot, TabDashboard } from "./handlers/start-run"
 import type { RunSlot } from "./handlers/start-run"
 import { handleReplay } from "./handlers/replay"
+import { handleDataflowRun } from "./handlers/dataflow-run"
 import { mkdirSync } from "fs"
 import { join } from "path"
 
@@ -19,6 +20,10 @@ export class StandaloneServer {
   private server:   ReturnType<typeof Bun.serve> | null = null
   private warmPool: WarmPool
   private portPool: PortPool
+  /** Bearer token gating /api/dataflow/run. Taken from SWARM_API_TOKEN if set,
+   *  otherwise auto-generated at startup (zero-config) and printed once. */
+  private readonly apiToken: string = process.env.SWARM_API_TOKEN
+    || `swarm-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
 
   private static readonly WARM_POOL_SIZE = 3
 
@@ -51,11 +56,15 @@ export class StandaloneServer {
     const self = this
     this.server = Bun.serve({
       port: this.port,
+      hostname: "127.0.0.1",   // localhost only — the dataflow endpoint runs SQL / spends tokens
       fetch(req, server) {
         const url = new URL(req.url)
         if (url.pathname === "/ws") {
           const ok = server.upgrade(req, { data: {} })
           return ok ? undefined : new Response("WS upgrade failed", { status: 500 })
+        }
+        if (url.pathname === "/api/dataflow/run") {
+          return self.handleDataflowHTTP(req)
         }
         return self.handleHTTP(url)
       },
@@ -66,6 +75,9 @@ export class StandaloneServer {
       },
     })
     console.log(`  Swarm Web UI → http://localhost:${this.port}`)
+    const src = process.env.SWARM_API_TOKEN ? "from SWARM_API_TOKEN" : "auto-generated"
+    console.log(`  Data-flow API token (${src}): ${this.apiToken}`)
+    console.log(`    → curl -H "Authorization: Bearer ${this.apiToken}" -X POST http://127.0.0.1:${this.port}/api/dataflow/run`)
   }
 
   stop(): void {
@@ -104,6 +116,33 @@ export class StandaloneServer {
       return handleReplay(replayMatch[1]!, this.goalStore, json)
     }
     return new Response("Not found", { status: 404 })
+  }
+
+  // ── Data-flow analysis endpoint (auth-gated) ───────────────────────────────
+
+  private async handleDataflowHTTP(req: Request): Promise<Response> {
+    const json = (data: unknown, status = 200) =>
+      new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } })
+
+    if (req.method !== "POST") return json({ error: "method not allowed" }, 405)
+
+    // Auth: the endpoint always has a token (from SWARM_API_TOKEN or auto-
+    // generated at startup and printed). The caller must present it — we never
+    // expose an unauthenticated SQL/LLM execution endpoint.
+    const auth = req.headers.get("authorization") ?? ""
+    const presented = auth.startsWith("Bearer ") ? auth.slice(7) : ""
+    if (presented !== this.apiToken) return json({ error: "unauthorized" }, 401)
+
+    let body: import("./handlers/dataflow-run").DataflowRequest
+    try { body = await req.json() as import("./handlers/dataflow-run").DataflowRequest }
+    catch { return json({ error: "invalid JSON body" }, 400) }
+
+    try {
+      const result = await handleDataflowRun(body)
+      return json(result)
+    } catch (err) {
+      return json({ error: err instanceof Error ? err.message : String(err) }, 400)
+    }
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────

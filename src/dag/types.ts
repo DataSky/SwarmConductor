@@ -48,6 +48,33 @@ export interface TaskNode {
   maxRetries: number
   forkContext: boolean       // inherit parent agent context
   tokenUsage: { inputTokens: number; outputTokens: number; cacheHitTokens: number; cacheMissTokens: number } | null
+  /** Artifact IDs whose FULL content should be inlined into this task's prompt
+   *  (data-flow input). Bypasses the truncated `context` layer. */
+  inputArtifactIds?: string[]
+  /** Inline the FULL artifacts of every task this one dependsOn (resolved at
+   *  dispatch time). Closes the fan-out → cross-comparison data-flow loop. */
+  inputFromDeps?: boolean
+  /** Refs to artifacts this task produced (populated on completion). */
+  artifacts?: ArtifactRef[]
+  /** How many dynamic-generation hops produced this task (0 = original/plan).
+   *  Used to cap runaway follow-up recursion (e.g. verify→verify→verify). */
+  dynamicDepth?: number
+  /** This task is part of an EXPLICIT data-flow graph (created via spawnTasks /
+   *  a `## SPAWN` directive). Its successors are declared explicitly, so the
+   *  legacy code-edit heuristics (blockers→implement etc.) must NOT fire on its
+   *  output — otherwise structured result text gets mined into noise tasks. */
+  dataflow?: boolean
+  /** Which executor backend should run this task ("llm" by default). When set
+   *  to a registered non-LLM kind (e.g. "worker"), the scheduler routes it to
+   *  that executor — cheap deterministic work (SQL, validation, diff) avoids
+   *  spending LLM tokens. Unknown kinds fall back to the default executor. */
+  executorKind?: string
+  /** How to handle failed dependencies at fan-in:
+   *   - "tolerate" (default): run once all deps reach a terminal state, even if
+   *     some failed — the task receives whatever upstream artifacts exist.
+   *   - "all": any failed/interrupted dependency cascades — this task is marked
+   *     failed without running (use when partial input is meaningless). */
+  failurePolicy?: "tolerate" | "all"
 }
 
 // Required output contract (mirrors CodeWhale SUBAGENTS.md)
@@ -63,6 +90,80 @@ export interface TaskOutput {
 export interface ChangeRecord {
   file: string
   description: string
+}
+
+// ─── Artifacts ────────────────────────────────────────────────────────────────
+// A typed, full-fidelity result produced by a task. Unlike the `context` memory
+// layer (which is truncated to ~8KB for prompt economy), an artifact holds the
+// COMPLETE structured output — a SQL result set, a validation report, a diff —
+// so a downstream task can consume it without loss. This is the foundation of
+// data-flow orchestration: tasks pass data, not lossy text summaries.
+
+export type ArtifactKind =
+  | "task_output"   // the structured TaskOutput of a completed task
+  | "json"          // arbitrary structured data (e.g. a SQL result set)
+  | "text"          // large free text that must not be truncated
+  | "rows"          // tabular rows: { columns: string[]; rows: unknown[][] }
+
+export interface Artifact {
+  id: string
+  taskId: string       // the task that produced it
+  kind: ArtifactKind
+  /** Optional human label, e.g. "query_42_result". */
+  label: string | null
+  /** Serialized content (JSON string for json/rows/task_output, raw for text). */
+  content: string
+  /** Byte length of content, for budgeting/observability. */
+  byteSize: number
+  /** Lineage: artifact IDs that were fed into the task that produced this one.
+   *  Lets you trace a comparison/summary back to its source data. */
+  sourceArtifactIds?: string[]
+  createdAt: number
+}
+
+/** A lightweight pointer to an artifact, stored on the producing TaskNode. */
+export interface ArtifactRef {
+  id: string
+  kind: ArtifactKind
+  label: string | null
+  byteSize: number
+}
+
+// ─── Dynamic fan-out ──────────────────────────────────────────────────────────
+// A declarative spec for a task spawned at runtime (data-flow fan-out). Unlike
+// the old heuristic generator (capped at 2 follow-ups), a single completed task
+// can fan out into an arbitrary number of children — e.g. 100 SQL-validation
+// tasks, then a cross-comparison task per qualifying pair. Specs in one batch
+// can depend on each other via `key`/`dependsOnKeys`, which the conductor
+// resolves to real task IDs when it materializes the batch.
+
+export interface FanOutSpec {
+  /** Optional batch-local handle so sibling specs can depend on this one. */
+  key?: string
+  type: TaskType
+  title: string
+  prompt: string
+  scope?: string[]
+  role?: AgentRole
+  priority?: number
+  /** Depend on the task that produced this fan-out. */
+  dependsOnParent?: boolean
+  /** Depend on sibling specs in the same batch, by their `key`. */
+  dependsOnKeys?: string[]
+  /** Inline these upstream artifacts' FULL content into the child's prompt. */
+  inputArtifactIds?: string[]
+  /** Inline the parent task's produced artifacts into the child's prompt. */
+  inputFromParent?: boolean
+  /** Inline the FULL artifacts of every task this one dependsOn. Resolves at
+   *  dispatch time (sibling artifact IDs aren't known when the spec is written),
+   *  which is what closes the fan-out → cross-comparison data-flow loop. */
+  inputFromDeps?: boolean
+  /** Route this child to a specific executor backend (e.g. "worker" for a
+   *  deterministic SQL/validation step). Defaults to the LLM executor. */
+  executorKind?: string
+  /** Fan-in failure handling: "tolerate" (default) or "all" (cascade on any
+   *  failed dependency). See TaskNode.failurePolicy. */
+  failurePolicy?: "tolerate" | "all"
 }
 
 // ─── DAG state ───────────────────────────────────────────────────────────────
@@ -139,6 +240,13 @@ export interface ConductorConfig {
   dynamicTasks: boolean
   /** Per-role model override. Omitted roles use codewhale's global config. */
   modelMap: Partial<Record<AgentRole, string>>
+  /** Backpressure: minimum gap (ms) between two execution *starts*. Spaces out
+   *  LLM provider calls so a tick that dispatches many agents at once doesn't
+   *  burst the API into rate limits. 0 disables spacing. */
+  minStartIntervalMs: number
+  /** Backpressure: max executions allowed to *start* within any rolling 60s
+   *  window (token bucket). 0 disables the window cap. */
+  maxStartsPerMinute: number
 }
 
 export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<ConductorConfig, "projectPath">): ConductorConfig {
@@ -155,6 +263,8 @@ export function defaultConfig(overrides: Partial<ConductorConfig> & Pick<Conduct
     maxAgentRestarts: 3,
     dynamicTasks: true,
     modelMap: {},
+    minStartIntervalMs: 0,    // off by default — preserves current burst behaviour
+    maxStartsPerMinute: 0,    // off by default
     ...overrides,
   }
 }
@@ -183,6 +293,7 @@ export type ConductorEventKind =
   | "agent.status_changed"
   | "agent.crashed"
   | "agent.restarted"
+  | "agent.spawn_degraded"
   | "lock.acquired"
   | "lock.released"
   | "deadlock.detected"

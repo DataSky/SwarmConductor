@@ -330,16 +330,29 @@ export class TaskDAG {
 
     // Unblock when every dependency has reached a terminal state
     // (done, failed, or interrupted), regardless of whether it succeeded.
-    const allTerminal = task.dependsOn.every(depId => {
-      const dep = this.graph.tasks.get(depId)
-      return dep?.status === "done" || dep?.status === "failed" || dep?.status === "interrupted"
-    })
+    const deps = task.dependsOn.map(depId => this.graph.tasks.get(depId))
+    const allTerminal = deps.every(dep =>
+      dep?.status === "done" || dep?.status === "failed" || dep?.status === "interrupted")
 
-    if (allTerminal) {
-      this.transition(id, "ready")
-    } else {
+    if (!allTerminal) {
       this.transition(id, "blocked")
+      return
     }
+
+    // failurePolicy "all": any unsuccessful dependency cascades — this task
+    // fails without running, because partial input is meaningless to it.
+    if (task.failurePolicy === "all") {
+      const failedDep = deps.find(dep => dep?.status === "failed" || dep?.status === "interrupted")
+      if (failedDep) {
+        task.error = `Dependency "${failedDep.title}" did not succeed (failurePolicy=all)`
+        task.completedAt = Date.now()
+        this.transition(id, "failed")
+        this.unblockDownstream(id)
+        return
+      }
+    }
+
+    this.transition(id, "ready")
   }
 
   private unblockDownstream(completedId: string): void {

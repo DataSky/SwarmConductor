@@ -1,4 +1,11 @@
-import { describe, it, expect, afterEach } from "bun:test"
+import { describe, it, expect, afterEach, beforeAll } from "bun:test"
+
+// The planner reads DMXAPI_KEY from the env and throws if absent. fetch is
+// mocked in every test, so the value is irrelevant — but it must be present
+// or getApiKey() throws before the mock is reached.
+beforeAll(() => {
+  process.env.DMXAPI_KEY ??= "sk-test-dummy"
+})
 
 // ─── We test buildGraph in isolation by exporting it or testing via the public API ──
 // buildGraph is not exported, so we test aiGoalToTaskGraph with a mocked fetch

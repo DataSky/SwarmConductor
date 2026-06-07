@@ -3,10 +3,14 @@ import { TaskDAG, createTaskNode } from "../dag/engine"
 import { AgentProcessManager } from "../runtime/agent-manager"
 import { FileLockRegistry } from "../workspace/file-lock"
 import { ConductorStore } from "../memory/store"
-import { GitWorkspaceManager } from "../workspace/git-manager"
+
 import { CrashRecovery } from "./crash-recovery"
 import { ApprovalGate } from "./approval-gate"
 import { generateFollowupTasks } from "./dynamic-tasks"
+import { buildFanOutTasks, parseSpawnDirective } from "./fan-out"
+import { StartRateLimiter } from "./rate-limiter"
+import { LLMExecutor } from "../executor/llm-executor"
+import type { Executor, ExecutionHandle } from "../executor/types"
 import { join } from "path"
 import { mkdirSync, existsSync, readFileSync } from "fs"
 
@@ -139,9 +143,11 @@ function loadAgentInstructions(projectPath: string): string {
 export class Conductor {
   private dag: TaskDAG
   private agentMgr: AgentProcessManager
+  private executor: Executor                       // default backend (llm)
+  private executorsByKind: Map<string, Executor>   // routing table by task.executorKind
+  private startLimiter: StartRateLimiter
   private lockRegistry: FileLockRegistry
   readonly store: ConductorStore
-  private gitMgr: GitWorkspaceManager | null = null
   private crashRecovery: CrashRecovery
   readonly approvalGate: ApprovalGate
   private config: ConductorConfig
@@ -153,7 +159,7 @@ export class Conductor {
   private agentInstructions: string
   readonly runId: string
 
-  constructor(config: ConductorConfig, runId?: string) {
+  constructor(config: ConductorConfig, runId?: string, executor?: Executor, extraExecutors?: Executor[]) {
     this.config = config
     this.conductorDir = join(config.projectPath, ".conductor")
     mkdirSync(this.conductorDir, { recursive: true })
@@ -161,6 +167,19 @@ export class Conductor {
 
     this.dag = new TaskDAG(config.projectPath)
     this.agentMgr = new AgentProcessManager(config)
+    // Default backend is the LLM agent pool. A custom executor can be injected
+    // (a fake for deterministic tests today; a cheap WorkerExecutor tomorrow)
+    // without the scheduler knowing the difference.
+    this.executor = executor ?? new LLMExecutor(this.agentMgr)
+    // Routing table: a task whose executorKind matches a registered executor is
+    // dispatched there; everything else falls back to the default executor.
+    this.executorsByKind = new Map()
+    this.executorsByKind.set(this.executor.kind, this.executor)
+    for (const ex of extraExecutors ?? []) this.executorsByKind.set(ex.kind, ex)
+    this.startLimiter = new StartRateLimiter({
+      minIntervalMs: config.minStartIntervalMs,
+      maxPerMinute: config.maxStartsPerMinute,
+    })
     this.lockRegistry = new FileLockRegistry(config.fileLockTtlMs)
     this.store = new ConductorStore(this.conductorDir, this.runId)
     this.approvalGate = new ApprovalGate()
@@ -186,8 +205,6 @@ export class Conductor {
 
   async initialize(): Promise<void> {
     this.store.initRun(this.config.projectPath, this.dag.phase)
-    const gitMgr = new GitWorkspaceManager(this.config.projectPath)
-    if (gitMgr.isGitRepo()) this.gitMgr = gitMgr
   }
 
   /** Restore a previous run's task graph from SQLite (for crash recovery). */
@@ -216,8 +233,20 @@ export class Conductor {
     if (roles.length > this.config.maxConcurrentAgents) {
       throw new Error(`Requested ${roles.length} agents exceeds max ${this.config.maxConcurrentAgents}`)
     }
-    await this.agentMgr.spawnPool(roles)
-    this.emit("phase.started", { phase: this.dag.phase, agentCount: roles.length })
+    const { started, failures } = await this.agentMgr.spawnPool(roles)
+    if (failures.length > 0) {
+      // Degraded run: some agents failed but at least one started. Surface it
+      // rather than aborting — the scheduler simply has a smaller pool to work
+      // with and dispatches tasks more slowly.
+      console.warn(`[conductor] ${failures.length}/${roles.length} agent(s) failed to spawn; continuing with ${started.length}`)
+      this.emit("agent.spawn_degraded", {
+        requested: roles.length,
+        started: started.length,
+        failed: failures.length,
+        errors: failures.map(e => e.message),
+      })
+    }
+    this.emit("phase.started", { phase: this.dag.phase, agentCount: started.length })
   }
 
   // ── Scheduler ─────────────────────────────────────────────────────────────
@@ -260,26 +289,29 @@ export class Conductor {
         return
       }
 
-      const idleAgents = this.agentMgr.idleInstances()
-      if (idleAgents.length === 0) return
+      // Total free capacity across all executors. If everything is busy, wait.
+      if (this.totalAvailableSlots() === 0) return
 
       for (const task of this.dag.readyTasks()) {
-        if (idleAgents.length === 0) break
+        if (this.totalAvailableSlots() === 0) break
         if (this.dag.conflictingRunning(task.scope).length > 0) continue
 
-        const agent =
-          this.agentMgr.idleByRole(task.role)[0] ??
-          this.agentMgr.idleByRole("general")[0] ??
-          idleAgents[0]
-        if (!agent) continue
+        // Route to the executor for this task, then reserve a slot there. If
+        // that executor is full, skip to the next ready task — another task may
+        // target a different (free) executor, so we `continue`, not `break`.
+        const executor = this.selectExecutor(task)
+        const handle = executor.reserve(task)
+        if (!handle) continue
 
         if (task.scope.length > 0) {
-          if (!this.lockRegistry.tryAcquire(task.scope, agent.id, task.id)) continue
-          this.emit("lock.acquired", { agentId: agent.id, taskId: task.id, scope: task.scope })
+          if (!this.lockRegistry.tryAcquire(task.scope, handle.workerId, task.id)) {
+            handle.release()   // give the slot back; another task may use it
+            continue
+          }
+          this.emit("lock.acquired", { agentId: handle.workerId, taskId: task.id, scope: task.scope })
         }
 
-        idleAgents.splice(idleAgents.indexOf(agent), 1)
-        this.dispatch(agent.id, task).catch(err =>
+        this.dispatch(executor, handle, task).catch(err =>
           console.error(`[conductor] dispatch error task=${task.id}:`, err)
         )
       }
@@ -288,99 +320,112 @@ export class Conductor {
     }
   }
 
-  private async dispatch(agentId: string, task: TaskNode): Promise<void> {
+  /** Pick the executor for a task: its declared executorKind if registered,
+   *  otherwise the default (LLM) executor. */
+  private selectExecutor(task: TaskNode): Executor {
+    if (task.executorKind) {
+      const ex = this.executorsByKind.get(task.executorKind)
+      if (ex) return ex
+    }
+    return this.executor
+  }
+
+  /** Free slots summed across every registered executor. */
+  private totalAvailableSlots(): number {
+    let n = 0
+    for (const ex of this.executorsByKind.values()) n += ex.availableSlots()
+    return n
+  }
+
+  private async dispatch(executor: Executor, handle: ExecutionHandle, task: TaskNode): Promise<void> {
+    const agentId = handle.workerId
     this.activeDispatches++
     try {
-      const client = this.agentMgr.getClient(agentId)
+      // Does this executor act directly (worker) or drive an LLM? Decided by the
+      // executor's declared capability, not a brittle kind-string match — so any
+      // deterministic backend (sql/validate/compare) takes the worker path.
+      const isWorker = executor.actsDirectly === true
 
-      const contextEntries = this.store.getContext(task.scope)
-        .slice(-MAX_CONTEXT_ENTRIES)
-        .map(e => e.content.length > MAX_ENTRY_CHARS
-          ? { ...e, content: e.content.slice(0, MAX_ENTRY_CHARS) + "\n[…entry truncated…]" }
-          : e
-        )
-      const contextBlock = contextEntries.length > 0
-        ? `\n\n## Shared Context from Previous Agents\n${contextEntries.map(e => e.content).join("\n\n")}`
-        : ""
-      const projectMap = this.store.getProjectMap()
-      const projectMapBlock = projectMap ? `\n\n## Project Map\n${projectMap.content}` : ""
+      // Resolve data-flow inputs once: used to inline into the LLM prompt, to
+      // record lineage, and (for workers) to hand the actual artifacts to the runner.
+      const { block: artifactBlock, sourceIds, artifacts: inputArtifacts } = this.resolveInputArtifacts(task)
 
-      const fullPrompt = buildAgentPrompt({
-        task,
-        agentInstructions: this.agentInstructions,
-        projectMapBlock,
-        contextBlock,
-      })
+      // Worker tasks act on the task directly (no prompt assembly, no parsing).
+      // Everything else (the LLM backend, and test fakes that emulate it) gets
+      // the full structured agent prompt including inlined data-flow inputs.
+      let fullPrompt: string
+      if (isWorker) {
+        fullPrompt = task.prompt
+      } else {
+        const contextEntries = this.store.getContext(task.scope)
+          .slice(-MAX_CONTEXT_ENTRIES)
+          .map(e => e.content.length > MAX_ENTRY_CHARS
+            ? { ...e, content: e.content.slice(0, MAX_ENTRY_CHARS) + "\n[…entry truncated…]" }
+            : e
+          )
+        const contextBlock = contextEntries.length > 0
+          ? `\n\n## Shared Context from Previous Agents\n${contextEntries.map(e => e.content).join("\n\n")}`
+          : ""
+        const projectMap = this.store.getProjectMap()
+        const projectMapBlock = projectMap ? `\n\n## Project Map\n${projectMap.content}` : ""
+        fullPrompt = buildAgentPrompt({
+          task,
+          agentInstructions: this.agentInstructions,
+          projectMapBlock,
+          contextBlock: contextBlock + artifactBlock,
+        })
+      }
 
-      // Mark busy synchronously before any await to prevent double-dispatch
-      // within the same scheduler tick.
-      this.agentMgr.markBusy(agentId, task.id, "pending")
+      // The slot was reserved (worker marked busy) in tick(); record the DAG
+      // assignment, then hand the prompt to the executor.
       this.dag.assign(task.id, agentId)
-      const thread = await client.createThread(
-        this.config.modelMap[task.role] ?? undefined
-      )
-      this.agentMgr.markBusy(agentId, task.id, thread.id, thread.model)
 
-      const turn = await client.postTurn(thread.id, {
-        prompt: fullPrompt,
-        auto_approve: this.config.autoApprove,
-        fork_context: task.forkContext,
-      })
+      // Backpressure: wait until the rate limiter permits a new start, so a
+      // tick that reserved many agents doesn't burst the LLM provider at once.
+      // Workers don't hit the provider — they run at full speed, unthrottled.
+      if (!isWorker) await this.startLimiter.acquire()
 
-      const agentModel = this.agentMgr.getInstance(agentId)?.model ?? null
-
-      const { fullText: rawText, status, usage, malformedLines } = await client.waitForTurn(
-        thread.id, turn.id,
+      const { rawText, status, usage, malformedLines } = await handle.execute(
+        fullPrompt,
+        {
+          model: this.config.modelMap[task.role] ?? undefined,
+          autoApprove: this.config.autoApprove,
+          forkContext: task.forkContext,
+          timeoutMs: this.config.fileLockTtlMs,
+          inputArtifacts,
+        },
         this.streamListeners.length > 0
-          ? (delta) => { for (const cb of this.streamListeners) cb(agentId, task, delta, agentModel) }
+          ? (delta, model) => { for (const cb of this.streamListeners) cb(agentId, task, delta, model) }
           : undefined,
-        this.config.fileLockTtlMs,
       )
 
       if (malformedLines > 0) {
         try {
-          this.store.logEvent(agentId, task.id, "sse.malformed",
-            { title: task.title, malformedLines })
+          this.store.logEvent(agentId, task.id, "sse.malformed", { title: task.title, malformedLines })
         } catch { /* db may be closed */ }
       }
 
       if (status === "failed" || status === "interrupted") {
-        this.dag.fail(task.id, `Turn ended with status: ${status}`)
+        this.dag.fail(task.id, `Execution ended with status: ${status}`)
         return
       }
 
-      // Guard against runaway output that would explode the parser / memory
+      // Guard against runaway output that would explode the parser / memory.
       const fullText = rawText.length > MAX_OUTPUT_CHARS
         ? rawText.slice(0, MAX_OUTPUT_CHARS) + "\n[output truncated by conductor]"
         : rawText
 
-      const output = parseTaskOutput(fullText)
-      // Attach token usage to the task before completing
+      // Worker output is the result itself; LLM output is five-section markdown.
+      const output: TaskOutput = isWorker
+        ? { summary: fullText, changes: [], evidence: [], risks: [], blockers: [], rawText: fullText }
+        : parseTaskOutput(fullText)
       task.tokenUsage = usage
+
+      this.persistCompletion(agentId, task, output, isWorker, sourceIds)
       this.dag.complete(task.id, output)
 
-      this.store.writeMemory({
-        layer: "context", agentId, taskId: task.id,
-        content: `[Task: ${task.title}]\n${output.summary}\n\nChanges:\n${output.changes.map(c => `- ${c.file}: ${c.description}`).join("\n")}`,
-        tags: task.scope,
-      })
-      this.store.logEvent(agentId, task.id, "task.completed",
-        { title: task.title, risks: output.risks })
-
       if (this.config.dynamicTasks) await this.insertDynamicTasks(task, output)
-
-      const highRisks = output.risks.filter(r => /\b(critical|high|severe|security|data loss|breaking)\b/i.test(r))
-      if (highRisks.length > 0) {
-        this.stopScheduler()
-        this.emit("approval.required", { taskId: task.id, risks: highRisks })
-        const decision = await this.approvalGate.request(
-          "high_risk",
-          `Task "${task.title}" completed with ${highRisks.length} high-severity risk(s):\n${highRisks.map(r => `  • ${r}`).join("\n")}\n\nApprove to continue?`,
-          { taskId: task.id, risks: highRisks },
-        )
-        this.emit("approval.resolved", { decision, taskId: task.id })
-        if (decision === "approved") this.startScheduler()
-      }
+      await this.handleHighRiskGate(task, output)
 
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -392,7 +437,7 @@ export class Conductor {
     } finally {
       this.lockRegistry.releaseByTask(task.id)
       this.emit("lock.released", { taskId: task.id })
-      this.agentMgr.markIdle(agentId)
+      handle.release()
       this.activeDispatches--
       // Immediately wake the scheduler so the next ready task starts
       // without waiting for the 5-s safety-net interval.
@@ -400,7 +445,117 @@ export class Conductor {
     }
   }
 
+  // ── dispatch helpers (extracted for clarity; behaviour unchanged) ──────────
+
+  /** Resolve the data-flow input artifacts for a task: explicitly-named ids
+   *  plus (if inputFromDeps) every artifact produced by its dependencies.
+   *  Returns both the inlined prompt block and the resolved source IDs (for
+   *  lineage). Resolved at dispatch time — sibling IDs don't exist earlier. */
+  private resolveInputArtifacts(task: TaskNode): { block: string; sourceIds: string[]; artifacts: import("../dag/types").Artifact[] } {
+    const ids: string[] = [...(task.inputArtifactIds ?? [])]
+    if (task.inputFromDeps) {
+      for (const depId of task.dependsOn) {
+        for (const a of this.store.getArtifactsByTask(depId)) ids.push(a.id)
+      }
+    }
+    const seen = new Set<string>()
+    const sourceIds: string[] = []
+    const artifacts: import("../dag/types").Artifact[] = []
+    const parts: string[] = []
+    for (const aid of ids) {
+      if (seen.has(aid)) continue
+      seen.add(aid)
+      const art = this.store.getArtifact(aid)
+      if (art) {
+        sourceIds.push(art.id)
+        artifacts.push(art)
+        const label = art.label ? ` (${art.label})` : ""
+        parts.push(`### Artifact ${art.id}${label} [${art.kind}]\n${art.content}`)
+      }
+    }
+    const block = parts.length > 0
+      ? `\n\n## Input Data (complete, from upstream tasks)\n${parts.join("\n\n")}`
+      : ""
+    return { block, sourceIds, artifacts }
+  }
+
+  /** Persist a completed task's full output as an artifact (verbatim for
+   *  workers, parsed sections for LLM) and record memory + event. Best-effort:
+   *  swallows closed-DB errors during shutdown. */
+  private persistCompletion(agentId: string, task: TaskNode, output: TaskOutput, isWorker: boolean, sourceArtifactIds: string[]): void {
+    try {
+      const ref = this.store.writeArtifact({
+        taskId: task.id,
+        kind: isWorker ? "json" : "task_output",
+        label: task.title,
+        sourceArtifactIds,
+        content: isWorker
+          ? output.rawText
+          : JSON.stringify({
+              summary: output.summary,
+              changes: output.changes,
+              evidence: output.evidence,
+              risks: output.risks,
+              blockers: output.blockers,
+            }),
+      })
+      task.artifacts = [...(task.artifacts ?? []), ref]
+    } catch (err) {
+      // A closed DB during shutdown is expected; anything else is a real bug
+      // (e.g. a schema/migration mismatch) that must not be silently swallowed.
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes("closed database")) {
+        console.error(`[conductor] writeArtifact failed for task ${task.id}: ${msg}`)
+      }
+    }
+
+    this.store.writeMemory({
+      layer: "context", agentId, taskId: task.id,
+      content: `[Task: ${task.title}]\n${output.summary}\n\nChanges:\n${output.changes.map(c => `- ${c.file}: ${c.description}`).join("\n")}`,
+      tags: task.scope,
+    })
+    this.store.logEvent(agentId, task.id, "task.completed", { title: task.title, risks: output.risks })
+  }
+
+  /** Open the high-severity-risk approval gate. In autoApprove (unattended)
+   *  mode it auto-approves with an observability event instead of blocking, so
+   *  a headless run can't deadlock on a gate nobody is there to resolve. */
+  private async handleHighRiskGate(task: TaskNode, output: TaskOutput): Promise<void> {
+    const highRisks = output.risks.filter(r => /\b(critical|high|severe|security|data loss|breaking)\b/i.test(r))
+    if (highRisks.length === 0) return
+
+    if (this.config.autoApprove) {
+      this.emit("approval.required", { taskId: task.id, risks: highRisks, autoApproved: true })
+      this.emit("approval.resolved", { decision: "approved", taskId: task.id, autoApproved: true })
+      return
+    }
+    this.stopScheduler()
+    this.emit("approval.required", { taskId: task.id, risks: highRisks })
+    const decision = await this.approvalGate.request(
+      "high_risk",
+      `Task "${task.title}" completed with ${highRisks.length} high-severity risk(s):\n${highRisks.map(r => `  • ${r}`).join("\n")}\n\nApprove to continue?`,
+      { taskId: task.id, risks: highRisks },
+    )
+    this.emit("approval.resolved", { decision, taskId: task.id })
+    if (decision === "approved") this.startScheduler()
+  }
+
   private async insertDynamicTasks(completedTask: TaskNode, output: TaskOutput): Promise<void> {
+    // 1. Explicit, output-driven fan-out: an agent (typically a planner) may
+    //    emit a `## SPAWN` directive declaring an arbitrary number of children.
+    //    This is the data-flow path — no 2-task cap.
+    const fanOut = parseSpawnDirective(output.rawText)
+    if (fanOut.length > 0) {
+      this.spawnTasks(completedTask.id, fanOut)
+      return
+    }
+
+    // 2. Heuristic fallback (legacy code-edit behaviour): BLOCKERS → implement,
+    //    high RISKS → review, test changes → verify. Capped at 2.
+    //    Skipped for data-flow tasks: their successors are declared explicitly
+    //    via SPAWN, so mining their structured output for follow-ups only yields
+    //    noise (markdown rows, "none" lines) misread as blockers/risks.
+    if (completedTask.dataflow) return
     const existingTitles = new Set(this.dag.allTasks().map(t => t.title))
     const { inserted } = generateFollowupTasks(completedTask, output, existingTitles)
     if (inserted.length === 0) return
@@ -409,6 +564,32 @@ export class Conductor {
       this.store.upsertTask(t)
       this.emit("task.dynamic_inserted", { taskId: t.id, title: t.title, type: t.type, parentTaskId: completedTask.id })
     }
+  }
+
+  /**
+   * Declaratively fan out a batch of child tasks from a parent task. Children
+   * may depend on the parent, on each other (via FanOutSpec.key), and may inline
+   * upstream artifacts as full-fidelity input. Returns the spec.key → task id
+   * map. This is the public, programmable dynamic-graph API.
+   */
+  spawnTasks(parentTaskId: string, specs: import("../dag/types").FanOutSpec[]): Record<string, string> {
+    const parent = this.dag.getTask(parentTaskId)
+    if (!parent) throw new Error(`spawnTasks: unknown parent task ${parentTaskId}`)
+    if (specs.length === 0) return {}
+
+    const { nodes, keyToId, warnings } = buildFanOutTasks({
+      parent,
+      parentArtifacts: parent.artifacts ?? [],
+      specs,
+    })
+    for (const w of warnings) console.warn(`[conductor] fan-out: ${w}`)
+
+    this.dag.addTasks(nodes)
+    for (const t of nodes) {
+      try { this.store.upsertTask(t) } catch { /* db may be closed */ }
+      this.emit("task.dynamic_inserted", { taskId: t.id, title: t.title, type: t.type, parentTaskId })
+    }
+    return keyToId
   }
 
   // ── Phase boundary ────────────────────────────────────────────────────────

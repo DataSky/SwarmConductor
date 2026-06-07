@@ -412,3 +412,39 @@ describe("FileLockRegistry", () => {
     expect(reg.isLocked("/src/b.ts")).toBe(false)
   })
 })
+
+describe("fan-in failurePolicy", () => {
+  it("tolerate (default): downstream becomes ready even if a dep failed", () => {
+    const dag = new TaskDAG("/tmp/fp")
+    const a = createTaskNode({ type: "review", title: "A", prompt: "p", scope: [], maxRetries: 0 })
+    const b = createTaskNode({ type: "review", title: "B", prompt: "p", scope: [], dependsOn: [a.id] })
+    dag.addTasks([a, b])
+    dag.fail(a.id, "boom")                       // a → failed (no retries)
+    expect(dag.getTask(a.id)?.status).toBe("failed")
+    expect(dag.getTask(b.id)?.status).toBe("ready")   // tolerant: still runs
+  })
+
+  it("all: a failed dependency cascades the downstream task to failed", () => {
+    const dag = new TaskDAG("/tmp/fp2")
+    const a = createTaskNode({ type: "review", title: "A", prompt: "p", scope: [], maxRetries: 0 })
+    const b = createTaskNode({
+      type: "review", title: "B", prompt: "p", scope: [], dependsOn: [a.id], failurePolicy: "all",
+    })
+    dag.addTasks([a, b])
+    dag.fail(a.id, "boom")
+    expect(dag.getTask(b.id)?.status).toBe("failed")  // cascaded, never ran
+    expect(dag.getTask(b.id)?.error).toContain("did not succeed")
+  })
+
+  it("all: downstream still runs when every dependency succeeds", () => {
+    const dag = new TaskDAG("/tmp/fp3")
+    const a = createTaskNode({ type: "review", title: "A", prompt: "p", scope: [] })
+    const b = createTaskNode({
+      type: "review", title: "B", prompt: "p", scope: [], dependsOn: [a.id], failurePolicy: "all",
+    })
+    dag.addTasks([a, b])
+    dag.assign(a.id, "agent-1")
+    dag.complete(a.id, { summary: "", changes: [], evidence: [], risks: [], blockers: [], rawText: "" })
+    expect(dag.getTask(b.id)?.status).toBe("ready")
+  })
+})

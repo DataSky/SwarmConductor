@@ -13,6 +13,26 @@ export function buildSafeEnv(): Record<string, string> {
   return env
 }
 
+const SIGKILL_GRACE_MS = 3_000  // wait this long for SIGTERM before escalating to SIGKILL
+
+/**
+ * Gracefully terminate a subprocess: send SIGTERM, wait up to `graceMs` for it
+ * to exit, then escalate to SIGKILL. Safe to call on an already-exited process
+ * (kill becomes a no-op) and never throws. Awaiting this guarantees the OS has
+ * released the process's resources — notably its TCP port — before the caller
+ * reuses them, which prevents the restart-on-same-port race.
+ */
+export async function terminate(proc: Subprocess, graceMs = SIGKILL_GRACE_MS): Promise<void> {
+  if (proc.killed) return
+  try { proc.kill() } catch { /* already gone */ }
+  const timeout = new Promise<"timeout">(r => setTimeout(() => r("timeout"), graceMs))
+  const result = await Promise.race([proc.exited.then(() => "exited" as const), timeout])
+  if (result === "timeout") {
+    try { proc.kill("SIGKILL") } catch { /* already gone */ }
+    await proc.exited.catch(() => {})
+  }
+}
+
 export class AgentProcessManager {
   private instances: Map<string, AgentInstance> = new Map()
   private processes: Map<string, Subprocess> = new Map()
@@ -23,6 +43,26 @@ export class AgentProcessManager {
   constructor(config: ConductorConfig) {
     this.config = config
     this.nextPort = config.basePort
+  }
+
+  /** Build the spawn options for a codewhale serve process on the given port.
+   *  Shared by spawn() and restart() so the two never drift apart.
+   *  stdout/stderr must be "ignore" (not "pipe") — codewhale-tui is a Ratatui
+   *  program that exits immediately when isatty() returns false (piped fd). */
+  private spawnServe(port: number): Subprocess {
+    return spawn({
+      cmd: [
+        this.config.codewhalebin,
+        "serve",
+        "--http",
+        "--port", String(port),
+        "--insecure",
+      ],
+      cwd: this.config.projectPath,
+      stdout: "ignore",
+      stderr: "ignore",
+      env: this.safeEnv(),
+    })
   }
 
   async spawn(role: AgentRole): Promise<AgentInstance> {
@@ -42,23 +82,7 @@ export class AgentProcessManager {
       lastHeartbeat: Date.now(),
     }
 
-    // Pass only the env vars codewhale actually needs.
-    // Never forward arbitrary secrets from the parent environment.
-    // stdout/stderr must be "ignore" (not "pipe") — codewhale-tui is a Ratatui
-    // program that exits immediately when isatty() returns false (piped fd).
-    const proc = spawn({
-      cmd: [
-        this.config.codewhalebin,
-        "serve",
-        "--http",
-        "--port", String(port),
-        "--insecure",
-      ],
-      cwd: this.config.projectPath,
-      stdout: "ignore",
-      stderr: "ignore",
-      env: this.safeEnv(),
-    })
+    const proc = this.spawnServe(port)
 
     instance.pid = proc.pid
     this.instances.set(id, instance)
@@ -68,11 +92,22 @@ export class AgentProcessManager {
     this.clients.set(id, client)
 
     try {
-      await client.waitUntilReady(90_000)  // codewhale needs ~20s to start in spawned env
+      // Race readiness against the process exiting. If our freshly-spawned
+      // process dies during startup (e.g. the port is already held by a stale
+      // codewhale, so bind fails), we must NOT treat the port answering as
+      // "ready" — that would adopt the wrong process. proc.exited winning the
+      // race means startup failed.
+      const readyOrDied = await Promise.race([
+        client.waitUntilReady(90_000).then(() => "ready" as const),
+        proc.exited.then(() => "exited" as const),
+      ])
+      if (readyOrDied === "exited") {
+        throw new Error(`process exited during startup (port ${port} likely already in use)`)
+      }
       instance.status = "idle"
     } catch (err) {
       instance.status = "crashed"
-      proc.kill()
+      await terminate(proc)
       this.instances.delete(id)
       this.processes.delete(id)
       this.clients.delete(id)
@@ -82,9 +117,28 @@ export class AgentProcessManager {
     return instance
   }
 
-  async spawnPool(roles: AgentRole[]): Promise<AgentInstance[]> {
-    // Spawn concurrently
-    return Promise.all(roles.map(r => this.spawn(r)))
+  /**
+   * Spawn agents concurrently, tolerating partial failure. Returns whichever
+   * agents started successfully along with the errors for those that didn't,
+   * so the caller can degrade to a smaller pool instead of aborting the whole
+   * run when a transient port conflict or slow codewhale startup hits one slot.
+   * Throws only if EVERY agent fails (a degraded run with zero agents is no run).
+   */
+  async spawnPool(roles: AgentRole[]): Promise<{ started: AgentInstance[]; failures: Error[] }> {
+    const results = await Promise.allSettled(roles.map(r => this.spawn(r)))
+    const started: AgentInstance[] = []
+    const failures: Error[] = []
+    for (const r of results) {
+      if (r.status === "fulfilled") started.push(r.value)
+      else failures.push(r.reason instanceof Error ? r.reason : new Error(String(r.reason)))
+    }
+    if (started.length === 0) {
+      throw new Error(
+        `All ${roles.length} agent(s) failed to spawn:\n` +
+        failures.map(e => `  • ${e.message}`).join("\n"),
+      )
+    }
+    return { started, failures }
   }
 
   getClient(agentId: string): CodeWhaleClient {
@@ -135,25 +189,17 @@ export class AgentProcessManager {
   async restart(agentId: string): Promise<void> {
     const inst = this.mustGet(agentId)
     const oldProc = this.processes.get(agentId)
-    oldProc?.kill()
 
     inst.status = "starting"
     inst.currentTaskId = null
     inst.threadId = null
 
-    const proc = spawn({
-      cmd: [
-        this.config.codewhalebin,
-        "serve",
-        "--http",
-        "--port", String(inst.port),
-        "--insecure",
-      ],
-      cwd: this.config.projectPath,
-      stdout: "ignore",
-      stderr: "ignore",
-      env: this.safeEnv(),
-    })
+    // Wait for the old process to fully exit before reusing its port — a bare
+    // kill() is async, so spawning immediately would race the OS releasing the
+    // TCP port and the new serve would fail to bind.
+    if (oldProc) await terminate(oldProc)
+
+    const proc = this.spawnServe(inst.port)
 
     inst.pid = proc.pid
     this.processes.set(agentId, proc)
@@ -178,11 +224,14 @@ export class AgentProcessManager {
   }
 
   async stopAll(): Promise<void> {
-    for (const [id, proc] of this.processes) {
-      proc.kill()
+    // Terminate concurrently and wait for every process to actually exit, so a
+    // graceful shutdown leaves no orphaned codewhale processes holding ports.
+    const procs = Array.from(this.processes.entries())
+    await Promise.all(procs.map(async ([id, proc]) => {
+      await terminate(proc)
       const inst = this.instances.get(id)
       if (inst) inst.status = "stopped"
-    }
+    }))
     this.processes.clear()
     this.clients.clear()
   }

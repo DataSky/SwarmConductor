@@ -28,10 +28,44 @@ interface PlannerResponse {
   tasks: AITaskSpec[]
 }
 
-const DMXAPI_URL      = "https://www.dmxapi.cn/v1/chat/completions"
-const DMXAPI_KEY      = "sk-yL623kg9yYnzwONfcztfgjIPRdCdeuWPvSXtg9qtw2wJ4rRQ"
-export const PRIMARY_PLANNER_MODEL  = "claude-opus-4-7"
-const FALLBACK_MODEL  = "deepseek-v3"   // used when primary fails
+// ─── Planner backends ─────────────────────────────────────────────────────────
+// Primary and fallback are DIFFERENT providers with different endpoints, keys,
+// and model names — they must not be conflated. Primary is Claude via DMXAPI;
+// fallback is DeepSeek via its own official OpenAI-compatible endpoint.
+
+interface PlannerBackend {
+  label: string
+  url: string
+  model: string
+  /** Resolve the API key at call time; throws with an actionable message. */
+  apiKey: () => string
+}
+
+function requireEnv(name: string, hint: string): string {
+  const v = process.env[name]
+  if (!v) throw new Error(`${name} is not set. ${hint}`)
+  return v
+}
+
+export const PRIMARY_PLANNER_MODEL = "claude-opus-4-7"
+
+const PRIMARY_BACKEND: PlannerBackend = {
+  label: "claude-opus-4-7 (DMXAPI)",
+  url: process.env.DMXAPI_URL ?? "https://www.dmxapi.cn/v1/chat/completions",
+  model: PRIMARY_PLANNER_MODEL,
+  apiKey: () => requireEnv("DMXAPI_KEY",
+    "Export it or add it to a (git-ignored) .env file (see .env.example)."),
+}
+
+// DeepSeek's official API: OpenAI-compatible, separate key, and the V3 model is
+// named "deepseek-chat" here (NOT "deepseek-v3", which the official API rejects).
+const FALLBACK_BACKEND: PlannerBackend = {
+  label: "deepseek-chat (api.deepseek.com)",
+  url: process.env.DEEPSEEK_URL ?? "https://api.deepseek.com/chat/completions",
+  model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+  apiKey: () => requireEnv("DEEPSEEK_API_KEY",
+    "Export it or add it to a (git-ignored) .env file. Get one at https://platform.deepseek.com."),
+}
 
 const SYSTEM_PROMPT = `You are an expert software engineering orchestrator.
 Given a natural-language goal and a project path, produce a minimal, precise task graph.
@@ -68,16 +102,16 @@ export async function aiGoalToTaskGraph(goal: string, projectPath: string): Prom
 
   let raw: string
   try {
-    raw = await callPlanner(PRIMARY_PLANNER_MODEL, userMsg)
+    raw = await callPlanner(PRIMARY_BACKEND, userMsg)
   } catch (primaryErr) {
-    console.warn(`[planner] ${PRIMARY_PLANNER_MODEL} failed (${(primaryErr as Error).message}), falling back to ${FALLBACK_MODEL}`)
+    console.warn(`[planner] ${PRIMARY_BACKEND.label} failed (${(primaryErr as Error).message}), falling back to ${FALLBACK_BACKEND.label}`)
     try {
-      raw = await callPlanner(FALLBACK_MODEL, userMsg)
+      raw = await callPlanner(FALLBACK_BACKEND, userMsg)
     } catch (fallbackErr) {
       throw new Error(
-        `AI planner failed on both models.\n` +
-        `  Primary  (${PRIMARY_PLANNER_MODEL}): ${(primaryErr as Error).message}\n` +
-        `  Fallback (${FALLBACK_MODEL}): ${(fallbackErr as Error).message}`
+        `AI planner failed on both backends.\n` +
+        `  Primary  (${PRIMARY_BACKEND.label}): ${(primaryErr as Error).message}\n` +
+        `  Fallback (${FALLBACK_BACKEND.label}): ${(fallbackErr as Error).message}`
       )
     }
   }
@@ -93,15 +127,15 @@ export async function aiGoalToTaskGraph(goal: string, projectPath: string): Prom
   return buildGraph(plan, projectPath)
 }
 
-async function callPlanner(model: string, userMsg: string): Promise<string> {
-  const resp = await fetch(DMXAPI_URL, {
+async function callPlanner(backend: PlannerBackend, userMsg: string): Promise<string> {
+  const resp = await fetch(backend.url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${DMXAPI_KEY}`,
+      "Authorization": `Bearer ${backend.apiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model,
+      model: backend.model,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user",   content: userMsg },

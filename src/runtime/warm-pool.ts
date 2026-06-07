@@ -1,7 +1,7 @@
 import { spawn, type Subprocess } from "bun"
 import type { AgentInstance } from "../dag/types"
 import { CodeWhaleClient } from "./client"
-import { buildSafeEnv } from "./agent-manager"
+import { buildSafeEnv, terminate } from "./agent-manager"
 
 export interface WarmSlot {
   instance: AgentInstance
@@ -40,11 +40,13 @@ export class WarmPool {
     return taken
   }
 
-  /** Kill all remaining warm agents and prevent future refills. */
+  /** Kill all remaining warm agents and prevent future refills. Best-effort:
+   *  termination (incl. SIGKILL escalation) runs in the background so callers
+   *  on a synchronous shutdown path aren't blocked. */
   stop(): void {
     this.stopped = true
     for (const slot of this.ready) {
-      try { slot.process.kill() } catch { /* ignore */ }
+      void terminate(slot.process)
     }
     this.ready = []
   }
@@ -123,7 +125,7 @@ export class WarmPool {
       }
 
       if (this.stopped) {
-        proc.kill()
+        await terminate(proc)
         throw new Error("pool stopped during startup")
       }
 

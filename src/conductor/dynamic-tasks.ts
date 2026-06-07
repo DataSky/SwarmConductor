@@ -19,6 +19,13 @@ const CHINESE_STUB_RE = /^五[个]?[节段](落|章)?[。.]?$/
  *  Prevents a single verbose agent output from flooding the DAG. */
 const MAX_DYNAMIC_PER_TASK = 2
 
+/** Maximum dynamic-generation depth. A task generated from an original task has
+ *  depth 1; one generated from THAT has depth 2; etc. Beyond this cap no further
+ *  follow-ups are generated, which stops runaway recursion such as the observed
+ *  verify→verify→verify chain (each level had a distinct title, so title-based
+ *  dedup alone could not stop it). */
+const MAX_DYNAMIC_DEPTH = 2
+
 /** Minimum blocker text length — short strings are almost always noise. */
 const MIN_BLOCKER_LEN = 15
 
@@ -38,6 +45,12 @@ export function generateFollowupTasks(
   const inserted: TaskNode[] = []
   let skipped = 0
   let dynamicCount = 0  // shared cap: blockers + risks combined
+
+  // Depth guard: stop generating once we're at/over the cap, so dynamically
+  // generated tasks can't spawn an unbounded chain of further follow-ups.
+  const parentDepth = completedTask.dynamicDepth ?? 0
+  if (parentDepth >= MAX_DYNAMIC_DEPTH) return { inserted, skipped }
+  const childDepth = parentDepth + 1
 
   // ── Blockers → implement tasks ───────────────────────────────────────────
   for (const blocker of output.blockers) {
@@ -64,6 +77,7 @@ export function generateFollowupTasks(
       scope: completedTask.scope,
       priority: completedTask.priority + 5, // slightly higher than parent
       dependsOn: [completedTask.id],
+      dynamicDepth: childDepth,
     }))
     dynamicCount++
   }
@@ -93,15 +107,19 @@ export function generateFollowupTasks(
       scope: completedTask.scope,
       priority: completedTask.priority + 10,
       dependsOn: [completedTask.id],
+      dynamicDepth: childDepth,
     }))
     dynamicCount++
   }
 
   // ── Changes touching test files → verify task ────────────────────────────
-  const touchesTests = completedTask.scope.some(p =>
-    /\b(test|spec|__tests__)\b/i.test(p) || p.endsWith(".test.ts") || p.endsWith(".spec.ts")
-  ) || output.changes.some(c =>
-    /\b(test|spec)\b/i.test(c.file)
+  // Only spawn from a task that actually edits code (implement). A verify task
+  // re-running tests must NOT spawn another verify — that was the source of the
+  // observed verify→verify→verify recursion (distinct titles defeated dedup).
+  const touchesTests = completedTask.type === "implement" && (
+    completedTask.scope.some(p =>
+      /\b(test|spec|__tests__)\b/i.test(p) || p.endsWith(".test.ts") || p.endsWith(".spec.ts")
+    ) || output.changes.some(c => /\b(test|spec)\b/i.test(c.file))
   )
 
   if (touchesTests && output.changes.length > 0) {
@@ -121,6 +139,7 @@ export function generateFollowupTasks(
         scope: completedTask.scope,
         priority: completedTask.priority - 5,
         dependsOn: [completedTask.id],
+        dynamicDepth: childDepth,
       }))
     }
   }

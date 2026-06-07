@@ -49,6 +49,37 @@ describe("generateFollowupTasks", () => {
     expect(inserted.some(t => t.type === "verify")).toBe(true)
   })
 
+  // ── Recursion guards (regression for verify→verify→verify) ────────────────
+
+  it("does NOT spawn a verify task from a verify parent (no self-recursion)", () => {
+    const parent = createTaskNode({
+      type: "verify",                       // a verify task re-running tests
+      title: "Verify all tests pass",
+      prompt: "p",
+      scope: ["src/x.ts", "tests/x.test.ts"],
+    })
+    const output = { ...baseOutput(), changes: [{ file: "tests/x.test.ts", description: "ran" }] }
+    const { inserted } = generateFollowupTasks(parent, output, new Set())
+    expect(inserted.some(t => t.type === "verify")).toBe(false)
+  })
+
+  it("stops generating once dynamic depth reaches the cap", () => {
+    // A deeply-nested generated task must not produce further follow-ups.
+    const parent = createTaskNode({ type: "implement", title: "deep", prompt: "p", scope: [] })
+    parent.dynamicDepth = 2   // at the cap
+    const output = { ...baseOutput(), blockers: ["- Need to add a real actionable blocker here"] }
+    const { inserted } = generateFollowupTasks(parent, output, new Set())
+    expect(inserted.length).toBe(0)
+  })
+
+  it("tags generated tasks with an incremented dynamicDepth", () => {
+    const parent = createTaskNode({ type: "implement", title: "Feature", prompt: "p", scope: [] })
+    parent.dynamicDepth = 0
+    const output = { ...baseOutput(), blockers: ["- Missing the validation layer entirely"] }
+    const { inserted } = generateFollowupTasks(parent, output, new Set())
+    expect(inserted[0]!.dynamicDepth).toBe(1)
+  })
+
   it("deduplicates: skips tasks with already-existing titles", () => {
     const parent = createTaskNode({ type: "implement", title: "Feature B", prompt: "p", scope: [] })
     const output = { ...baseOutput(), blockers: ["- Need to add logging"] }

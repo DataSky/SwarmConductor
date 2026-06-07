@@ -109,17 +109,32 @@ describe("tryMerge nested catch safety (Bug 5)", () => {
 })
 
 // ── Bug 6: dispatch double-dispatch race ─────────────────────────────────────
+// The invariant: a worker must be claimed (marked busy) SYNCHRONOUSLY, before
+// any await, so two tasks in the same scheduler tick can't grab the same worker.
+// After the Executor refactor this guarantee moved into LLMExecutor.reserve()
+// (a synchronous method called from tick() before dispatch() runs any await).
 
-describe("dispatch pre-await markBusy (Bug 6)", () => {
-  it("conductor source marks agent busy before first await", async () => {
-    const src = await Bun.file("src/conductor/index.ts").text()
-    const dispatchFn = src.slice(src.indexOf("private async dispatch("))
-    const markBusyPos  = dispatchFn.indexOf("markBusy(agentId")
-    const firstAwaitPos = dispatchFn.indexOf("await client.createThread(")
-    // markBusy must come before the first await
+describe("synchronous slot reservation (Bug 6)", () => {
+  it("LLMExecutor.reserve marks the worker busy synchronously (not async)", async () => {
+    const src = await Bun.file("src/executor/llm-executor.ts").text()
+    const reserveFn = src.slice(src.indexOf("reserve(task"))
+    // reserve() must be a sync method (no `async`) and call markBusy directly.
+    expect(reserveFn.startsWith("reserve(task")).toBe(true)
+    const markBusyPos = reserveFn.indexOf("markBusy(")
+    const returnPos   = reserveFn.indexOf("return new LLMExecutionHandle")
     expect(markBusyPos).toBeGreaterThan(0)
-    expect(firstAwaitPos).toBeGreaterThan(0)
-    expect(markBusyPos).toBeLessThan(firstAwaitPos)
+    // The busy mark happens before the handle is returned — i.e. synchronously.
+    expect(markBusyPos).toBeLessThan(returnPos)
+  })
+
+  it("conductor tick reserves a slot before dispatching (await comes after reserve)", async () => {
+    const src = await Bun.file("src/conductor/index.ts").text()
+    const reservePos  = src.indexOf("executor.reserve(task)")
+    const dispatchPos = src.indexOf("this.dispatch(executor, handle, task)")
+    expect(reservePos).toBeGreaterThan(0)
+    expect(dispatchPos).toBeGreaterThan(0)
+    // reserve() (sync claim) must precede dispatch() (which holds the awaits).
+    expect(reservePos).toBeLessThan(dispatchPos)
   })
 })
 

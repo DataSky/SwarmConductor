@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
 import { join } from "path"
 import { mkdirSync } from "fs"
-import type { TaskNode, MemoryEntry, MemoryLayerKind } from "../dag/types"
+import type { TaskNode, MemoryEntry, MemoryLayerKind, Artifact, ArtifactKind, ArtifactRef } from "../dag/types"
 
 // ─── ConductorStore (SQLite via bun:sqlite) ───────────────────────────────────
 
@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   max_retries   INTEGER NOT NULL DEFAULT 2,
   fork_context  INTEGER NOT NULL DEFAULT 0,
   token_usage   TEXT,            -- JSON {inputTokens,outputTokens,cacheHitTokens,cacheMissTokens}
+  input_artifact_ids TEXT,        -- JSON string[] of upstream artifact IDs to inline (data-flow)
+  input_from_deps    INTEGER NOT NULL DEFAULT 0,  -- inline all dependency artifacts at dispatch
+  dataflow           INTEGER NOT NULL DEFAULT 0,  -- explicit data-flow node: skip code-edit heuristics
+  executor_kind      TEXT,           -- routing hint: which executor backend runs this task
+  failure_policy     TEXT,           -- fan-in failure handling: "tolerate" | "all"
   created_at    INTEGER NOT NULL,
   started_at    INTEGER,
   completed_at  INTEGER
@@ -80,6 +85,22 @@ CREATE TABLE IF NOT EXISTS agent_restarts (
   count     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (run_id, agent_id)
 );
+
+-- Typed, full-fidelity task results (data-flow). Unlike memory.context, the
+-- content here is NEVER truncated — downstream tasks consume complete data.
+CREATE TABLE IF NOT EXISTS artifacts (
+  id          TEXT PRIMARY KEY,
+  run_id      TEXT NOT NULL,
+  task_id     TEXT NOT NULL,
+  kind        TEXT NOT NULL,
+  label       TEXT,
+  content     TEXT NOT NULL,
+  byte_size   INTEGER NOT NULL,
+  source_artifact_ids TEXT,   -- JSON string[]: lineage (artifacts fed into the producing task)
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_artifacts_run  ON artifacts(run_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_task ON artifacts(run_id, task_id);
 `
 
 export interface RunRecord {
@@ -104,6 +125,20 @@ export class ConductorStore {
       "PRAGMA busy_timeout=5000;\n" +   // wait up to 5s instead of failing immediately on lock
       SCHEMA
     )
+    // Migrate DBs created before the input_artifact_ids column existed.
+    try { this.db.exec(`ALTER TABLE tasks ADD COLUMN input_artifact_ids TEXT`) }
+    catch { /* column already present */ }
+    try { this.db.exec(`ALTER TABLE tasks ADD COLUMN input_from_deps INTEGER NOT NULL DEFAULT 0`) }
+    catch { /* column already present */ }
+    try { this.db.exec(`ALTER TABLE tasks ADD COLUMN dataflow INTEGER NOT NULL DEFAULT 0`) }
+    catch { /* column already present */ }
+    try { this.db.exec(`ALTER TABLE tasks ADD COLUMN executor_kind TEXT`) }
+    catch { /* column already present */ }
+    try { this.db.exec(`ALTER TABLE tasks ADD COLUMN failure_policy TEXT`) }
+    catch { /* column already present */ }
+    // artifacts table predates the lineage column in older DBs — migrate it too.
+    try { this.db.exec(`ALTER TABLE artifacts ADD COLUMN source_artifact_ids TEXT`) }
+    catch { /* column already present (or table created fresh with it) */ }
     this.runId = runId
   }
 
@@ -145,8 +180,8 @@ export class ConductorStore {
       `INSERT OR REPLACE INTO tasks
        (id,run_id,type,title,status,priority,role,prompt,scope,depends_on,
         assigned_to,output,error,retry_count,max_retries,fork_context,
-        token_usage,created_at,started_at,completed_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        token_usage,input_artifact_ids,input_from_deps,dataflow,executor_kind,failure_policy,created_at,started_at,completed_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(
       task.id, this.runId, task.type, task.title, task.status,
       task.priority, task.role, task.prompt,
@@ -156,6 +191,11 @@ export class ConductorStore {
       task.error ?? null,
       task.retryCount, task.maxRetries, task.forkContext ? 1 : 0,
       task.tokenUsage ? JSON.stringify(task.tokenUsage) : null,
+      task.inputArtifactIds && task.inputArtifactIds.length > 0 ? JSON.stringify(task.inputArtifactIds) : null,
+      task.inputFromDeps ? 1 : 0,
+      task.dataflow ? 1 : 0,
+      task.executorKind ?? null,
+      task.failurePolicy ?? null,
       task.createdAt, task.startedAt ?? null, task.completedAt ?? null,
     )
   }
@@ -180,6 +220,11 @@ export class ConductorStore {
         maxRetries: r["max_retries"] as number,
         forkContext: (r["fork_context"] as number) === 1,
         tokenUsage: r["token_usage"] ? JSON.parse(r["token_usage"] as string) : null,
+        inputArtifactIds: r["input_artifact_ids"] ? JSON.parse(r["input_artifact_ids"] as string) as string[] : undefined,
+        inputFromDeps: (r["input_from_deps"] as number) === 1 ? true : undefined,
+        dataflow: (r["dataflow"] as number) === 1 ? true : undefined,
+        executorKind: (r["executor_kind"] as string | null) ?? undefined,
+        failurePolicy: (r["failure_policy"] as "tolerate" | "all" | null) ?? undefined,
         createdAt: r["created_at"] as number,
         startedAt: r["started_at"] as number | null,
         completedAt: r["completed_at"] as number | null,
@@ -253,6 +298,52 @@ export class ConductorStore {
         )
       )
     )
+  }
+
+  // ── Artifacts (full-fidelity data-flow results) ───────────────────────────
+
+  /** Persist an artifact and return its ref. Content is stored verbatim — no
+   *  truncation — so downstream tasks receive complete data. */
+  writeArtifact(input: { taskId: string; kind: ArtifactKind; label?: string | null; content: string; sourceArtifactIds?: string[] }): ArtifactRef {
+    const id = `art-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    const byteSize = Buffer.byteLength(input.content, "utf8")
+    const sources = input.sourceArtifactIds && input.sourceArtifactIds.length > 0
+      ? JSON.stringify(input.sourceArtifactIds) : null
+    this.db.prepare(
+      `INSERT INTO artifacts (id,run_id,task_id,kind,label,content,byte_size,source_artifact_ids,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`
+    ).run(id, this.runId, input.taskId, input.kind, input.label ?? null, input.content, byteSize, sources, Date.now())
+    return { id, kind: input.kind, label: input.label ?? null, byteSize }
+  }
+
+  getArtifact(id: string): Artifact | null {
+    const r = this.db.prepare(`SELECT * FROM artifacts WHERE id=? AND run_id=?`)
+      .get(id, this.runId) as Record<string, unknown> | null
+    if (!r) return null
+    return {
+      id: r["id"] as string,
+      taskId: r["task_id"] as string,
+      kind: r["kind"] as ArtifactKind,
+      label: (r["label"] as string | null) ?? null,
+      content: r["content"] as string,
+      byteSize: r["byte_size"] as number,
+      sourceArtifactIds: r["source_artifact_ids"] ? JSON.parse(r["source_artifact_ids"] as string) as string[] : undefined,
+      createdAt: r["created_at"] as number,
+    }
+  }
+
+  getArtifactsByTask(taskId: string): Artifact[] {
+    return (this.db.prepare(`SELECT * FROM artifacts WHERE run_id=? AND task_id=? ORDER BY created_at ASC`)
+      .all(this.runId, taskId) as Record<string, unknown>[]).map(r => ({
+        id: r["id"] as string,
+        taskId: r["task_id"] as string,
+        kind: r["kind"] as ArtifactKind,
+        label: (r["label"] as string | null) ?? null,
+        content: r["content"] as string,
+        byteSize: r["byte_size"] as number,
+        sourceArtifactIds: r["source_artifact_ids"] ? JSON.parse(r["source_artifact_ids"] as string) as string[] : undefined,
+        createdAt: r["created_at"] as number,
+      }))
   }
 
   // ── Event log ──────────────────────────────────────────────────────────────
